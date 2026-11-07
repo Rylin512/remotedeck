@@ -1,8 +1,9 @@
-const CACHE = 'remotedeck-v39';
+const CACHE = 'remotedeck-v40';
 const SHELL = [
   '/',
   '/index.html',
   '/app.js',
+  '/diff.js',
   '/styles.css',
   '/vendor/nosleep.js',
   '/manifest.webmanifest',

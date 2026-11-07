@@ -1,3 +1,5 @@
+import { buildEditDiff } from './diff.js';
+
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
@@ -42,6 +44,7 @@ const S = {
   connected: false,
   rendered: new Map(),
   toolEls: new Map(),
+  toolNames: new Map(),
   liveByMessage: new Map(),
   permissions: new Map(),
   questions: new Map(),
@@ -1409,6 +1412,7 @@ function showEmptyChat() {
   $('#messages').innerHTML = '';
   S.rendered.clear();
   S.toolEls.clear();
+  S.toolNames.clear();
   S.liveByMessage.clear();
 }
 
@@ -1554,6 +1558,7 @@ function renderMessages(messages, { scroll = true, hasOlder = false } = {}) {
   box.innerHTML = '';
   S.rendered.clear();
   S.toolEls.clear();
+  S.toolNames.clear();
   S.liveByMessage.clear();
   if (!messages.length) {
     box.innerHTML = '<div class="empty-list">还没有消息。发送第一条指令吧。</div>';
@@ -1655,6 +1660,20 @@ function makeEl(tag, className, html = '') {
   return el;
 }
 
+function renderEditDiff(event) {
+  const diff = buildEditDiff(event.name, event.input || {});
+  if (!diff) return '<div class="diff-empty">没有可显示的差异</div>';
+  const rows = diff.lines.map((line) => {
+    if (line.type === 'sep') return `<div class="diff-line sep"><span class="diff-sign"></span><span>${escapeHtml(line.text)}</span></div>`;
+    const sign = line.type === 'add' ? '+' : line.type === 'del' ? '−' : ' ';
+    return `<div class="diff-line ${line.type}"><span class="diff-sign">${sign}</span><span>${escapeHtml(line.text || ' ')}</span></div>`;
+  }).join('');
+  const note = diff.truncated ? '<div class="diff-more">差异较长，仅显示前一部分</div>' : '';
+  return `
+    <div class="diff-summary"><span class="diff-stat add">+${diff.adds}</span><span class="diff-stat del">−${diff.dels}</span></div>
+    <div class="diff-body">${rows}${note}</div>`;
+}
+
 function applyClaudeEvent(event, { initial = false } = {}) {
   if (!event || !event.event) return;
   if (event.event !== 'delta') flushDeltaBuffers();
@@ -1723,26 +1742,34 @@ function applyClaudeEvent(event, { initial = false } = {}) {
     S.rendered.set(event.id, el);
   } else if (event.event === 'tool_use') {
     const el = makeEl('div', 'msg assistant');
-    const input = JSON.stringify(event.input || {}, null, 2);
     const title = event.title || '';
+    const isEdit = event.name === 'Edit' || event.name === 'MultiEdit';
+    const input = isEdit ? '' : JSON.stringify(event.input || {}, null, 2);
+    const body = isEdit
+      ? renderEditDiff(event)
+      : `<details class="tool-body"><summary>查看参数</summary><pre>${escapeHtml(input)}</pre></details>`;
     el.innerHTML = `
-      <div class="tool-card" data-tool-id="${escapeHtml(event.toolUseId || '')}">
+      <div class="tool-card ${isEdit ? 'edit-card' : ''}" data-tool-id="${escapeHtml(event.toolUseId || '')}">
         <div class="tool-head">
           <span class="tool-icon"><svg class="icon"><use href="#i-tool"/></svg></span>
           <span class="tool-main"><span class="tool-name" title="${escapeHtml(event.name || 'Tool')}">${escapeHtml(event.name || 'Tool')}</span><span class="tool-title" title="${escapeHtml(title)}">${escapeHtml(title)}</span></span>
           <span class="tool-status">运行中</span>
         </div>
-        <details class="tool-body"><summary>查看参数</summary><pre>${escapeHtml(input)}</pre></details>
+        ${body}
       </div>`;
     appendMessage(el);
     S.rendered.set(event.id, el);
     S.toolEls.set(event.toolUseId, el);
+    S.toolNames.set(event.toolUseId, event.name || 'Tool');
   } else if (event.event === 'tool_result') {
     const el = S.toolEls.get(event.toolUseId) || [...S.toolEls.entries()].find(([id]) => id === event.toolUseId)?.[1];
     if (el) {
       const status = el.querySelector('.tool-status');
       status.textContent = event.isError ? '失败' : '完成';
       status.className = `tool-status ${event.isError ? 'error' : 'done'}`;
+      const toolName = S.toolNames.get(event.toolUseId) || '';
+      const isEdit = toolName === 'Edit' || toolName === 'MultiEdit';
+      if (isEdit && !event.isError) return;
       const card = el.querySelector('.tool-card');
       let result = card.querySelector('.tool-result');
       if (!result) {

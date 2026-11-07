@@ -48,6 +48,7 @@ RemoteDeck 在 Windows 本机运行一个小型控制服务：手机浏览器通
 | 实时插件会话 | 监视 VS Code 中正在运行的 Claude Code 会话；只有进程仍存活的会话才出现在实时列表 |
 | 微调 / 打断 | `nudge` 在下一个工具边界或回合被读取；`interrupt` 以 `priority=now` 中断当前回合 |
 | 工具步骤标题 | Bash 显示描述或命令摘要，Read/Edit 显示路径，Todo/任务/MCP 等都有标题；长标题省略不溢出 |
+| Edit 差异 | Edit/MultiEdit 直接显示绿色新增行和红色删除行及增删统计，不再展示原始参数和成功结果 |
 | 思考状态 | 显示「Claude 正在思考 / 正在执行工具 / 正在输出」和 token 用量，不展开思考正文 |
 | 会话状态 | 「正在对话 / 历史对话」跟随 SSE 事件即时更新，不依赖慢缓存 |
 | 选择题回答 | Claude 使用 AskUserQuestion 时，手机端可选择选项、多选或填写「其他」自定义答案 |
@@ -295,7 +296,7 @@ npm run icon:generate              # 重新生成图标
 
 ```powershell
 npm run check     # 语法检查
-npm test          # 35 个自动化测试
+npm test          # 38 个自动化测试
 npm run desktop   # 桌面版
 ```
 
