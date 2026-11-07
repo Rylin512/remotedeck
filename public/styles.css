@@ -502,17 +502,23 @@ button.full, .full { width: 100%; }
 .permission-bar .icon { width: 16px; height: 16px; }
 .permission-bar span { flex: 1; }
 .composer {
-  margin: 6px 10px 0; padding: 6px 6px 6px 12px; display: flex; align-items: flex-end; gap: 7px;
-  background: linear-gradient(180deg, rgba(17, 26, 43, 0.42), rgba(17, 26, 43, 0.28));
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 17px; box-shadow: none;
+  margin: 6px 10px 0; padding: 0; display: flex; align-items: flex-end; gap: 8px;
+  background: transparent; border: 0; box-shadow: none;
   min-width: 0;
 }
 .composer textarea {
-  border: 0; background: transparent; box-shadow: none; padding: 9px 0; max-height: 132px;
-  font-size: 14px; line-height: 1.45; min-height: 40px; min-width: 0;
+  flex: 1 1 auto; width: auto;
+  background: rgba(17, 26, 43, 0.52);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 16px;
+  box-shadow: none; padding: 10px 13px; max-height: 132px;
+  font-size: 14px; line-height: 1.45; min-height: 44px; min-width: 0;
 }
-.composer textarea:focus { box-shadow: none; border: 0; }
+.composer textarea:focus {
+  border-color: rgba(110, 231, 216, 0.4);
+  background: rgba(17, 26, 43, 0.62);
+  box-shadow: none;
+}
 .send-btn, .stop-btn {
   width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center;
   border: 0; flex: 0 0 auto;
