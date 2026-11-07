@@ -34,6 +34,9 @@ const S = {
   sseWatchdog: null,
   resyncTimer: null,
   resyncing: false,
+  messageLimit: 120,
+  hasOlder: false,
+  loadingOlder: false,
   deltaBuffers: new Map(),
   deltaFrame: 0,
   connected: false,
@@ -642,10 +645,10 @@ async function resyncActiveSession() {
   S.resyncing = true;
   try {
     if (pluginId) {
-      const data = await api(`/api/claude/plugin/sessions/${pluginId}`);
+      const data = await api(`/api/claude/plugin/sessions/${pluginId}?limit=${S.messageLimit}`);
       if (S.pluginSessionId !== pluginId) return;
       if (data.session) S.pluginSession = { ...(S.pluginSession || {}), ...data.session };
-      renderMessages(data.messages || [], { scroll: atBottom });
+      renderMessages(data.messages || [], { scroll: atBottom, hasOlder: Boolean(data.session?.hasMore) });
       if (!atBottom && box) box.scrollTop = oldTop;
       updatePluginHeader();
       updateComposerState();
@@ -653,12 +656,12 @@ async function resyncActiveSession() {
       await refreshState({ silent: true });
       return;
     }
-    const data = await api(`/api/claude/sessions/${sessionId}`);
+    const data = await api(`/api/claude/sessions/${sessionId}?limit=${S.messageLimit}`);
     if (S.activeSessionId !== sessionId) return;
     if (!data.session) return;
     S.session = data.session;
     renderSessionHeader();
-    renderMessages(S.session.messages || [], { scroll: atBottom });
+    renderMessages(S.session.messages || [], { scroll: atBottom, hasOlder: Boolean(S.session.hasMore) });
     if (!atBottom && box) box.scrollTop = oldTop;
     updateComposerState();
     updateThinkingIndicator();
@@ -978,6 +981,7 @@ async function openPluginSession(item) {
   S.pluginMode = 'nudge';
   S.thinkingTokens = 0;
   S.currentActivity = null;
+  S.messageLimit = 120;
   showActive();
   $('#composer').hidden = false;
   $('.composer-meta').hidden = false;
@@ -994,13 +998,13 @@ async function openPluginSession(item) {
   updateComposerState();
   updateThinkingIndicator();
   try {
-    const data = await api(`/api/claude/plugin/sessions/${item.id}`);
+    const data = await api(`/api/claude/plugin/sessions/${item.id}?limit=${S.messageLimit}`);
     if (S.pluginSessionId !== item.id) return;
     if (!data.session || data.session.id !== item.id) {
       throw new Error('返回的会话不匹配，已取消打开');
     }
     S.pluginSession = { ...S.pluginSession, ...data.session };
-    renderMessages(data.messages || []);
+    renderMessages(data.messages || [], { hasOlder: Boolean(data.session.hasMore) });
     updatePluginHeader();
     updateComposerState();
     updateThinkingIndicator();
@@ -1329,7 +1333,8 @@ async function loadQr(url) {
 
 async function loadSession(id) {
   stopHistoryPolling();
-  const data = await api(`/api/claude/sessions/${id}`);
+  S.messageLimit = 120;
+  const data = await api(`/api/claude/sessions/${id}?limit=${S.messageLimit}`);
   if (!data.session || data.session.id !== id) {
     throw new Error('返回的会话不匹配');
   }
@@ -1347,7 +1352,7 @@ async function loadSession(id) {
   $('#prompt-input').disabled = false;
   $('#send-btn').disabled = false;
   $('#prompt-input').placeholder = '给 Claude 发指令…';
-  renderMessages(S.session.messages || []);
+  renderMessages(S.session.messages || [], { hasOlder: Boolean(S.session.hasMore) });
   renderSessionHeader();
   updateComposerState();
   renderPendingBar();
@@ -1374,6 +1379,8 @@ function showEmptyChat() {
   S.thinkingTokens = 0;
   S.currentActivity = null;
   S.currentQuestion = null;
+  S.messageLimit = 120;
+  S.hasOlder = false;
   if ($('#question-dialog')?.open) $('#question-dialog').close();
   hideThinkingIndicator();
   localStorage.removeItem('rd_active_session');
@@ -1521,11 +1528,12 @@ function syncQuestionsFromSession(session) {
   }
 }
 
-function renderMessages(messages, { scroll = true } = {}) {
+function renderMessages(messages, { scroll = true, hasOlder = false } = {}) {
   flushDeltaBuffers();
   S.deltaBuffers.clear();
   if (S.deltaFrame) cancelAnimationFrame(S.deltaFrame);
   S.deltaFrame = 0;
+  S.hasOlder = Boolean(hasOlder);
   const box = $('#messages');
   box.innerHTML = '';
   S.rendered.clear();
@@ -1535,8 +1543,57 @@ function renderMessages(messages, { scroll = true } = {}) {
     box.innerHTML = '<div class="empty-list">还没有消息。发送第一条指令吧。</div>';
     return;
   }
+  if (hasOlder) {
+    const button = makeEl('button', 'load-older', '加载更早的消息');
+    button.type = 'button';
+    button.addEventListener('click', () => {
+      loadOlderMessages().catch((err) => toast(err.message, true));
+    });
+    box.appendChild(button);
+  }
   for (const event of messages) applyClaudeEvent(event, { initial: true });
   if (scroll) scrollBottom(true);
+}
+
+async function loadOlderMessages() {
+  if (S.loadingOlder || !S.hasOlder) return;
+  if (S.messageLimit >= 1000) {
+    toast('已加载最近 1000 条消息');
+    return;
+  }
+  const pluginId = S.pluginSessionId;
+  const sessionId = S.activeSessionId;
+  const box = $('#messages');
+  const oldHeight = box.scrollHeight;
+  const oldTop = box.scrollTop;
+  const wasAtBottom = oldHeight - oldTop - box.clientHeight < 40;
+  S.loadingOlder = true;
+  S.messageLimit = Math.min(1000, S.messageLimit + 120);
+  try {
+    if (pluginId) {
+      const data = await api(`/api/claude/plugin/sessions/${pluginId}?limit=${S.messageLimit}`);
+      if (S.pluginSessionId !== pluginId) return;
+      if (data.session) S.pluginSession = { ...(S.pluginSession || {}), ...data.session };
+      renderMessages(data.messages || [], { scroll: false, hasOlder: Boolean(data.session?.hasMore || data.hasMore) });
+      updatePluginHeader();
+      updateComposerState();
+      updateThinkingIndicator();
+    } else if (sessionId) {
+      const data = await api(`/api/claude/sessions/${sessionId}?limit=${S.messageLimit}`);
+      if (S.activeSessionId !== sessionId) return;
+      S.session = data.session;
+      renderSessionHeader();
+      renderMessages(data.session.messages || [], { scroll: false, hasOlder: Boolean(data.session.hasMore) });
+      updateComposerState();
+      updateThinkingIndicator();
+      syncQuestionsFromSession(data.session);
+    } else {
+      return;
+    }
+    box.scrollTop = wasAtBottom ? box.scrollHeight : oldTop + (box.scrollHeight - oldHeight);
+  } finally {
+    S.loadingOlder = false;
+  }
 }
 
 function flushDeltaBuffers() {

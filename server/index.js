@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
+import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import QRCode from 'qrcode';
 
@@ -80,6 +81,31 @@ function securityHeaders(req, res) {
 
 function json(res, status, body, extraHeaders = {}) {
   const data = JSON.stringify(body);
+  const accept = String(res.req?.headers?.['accept-encoding'] || '');
+  if (data.length > 2048 && /\bgzip\b/.test(accept)) {
+    zlib.gzip(data, (err, compressed) => {
+      if (err) {
+        res.writeHead(status, {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Cache-Control': 'no-store',
+          'Content-Length': Buffer.byteLength(data),
+          ...extraHeaders,
+        });
+        res.end(data);
+        return;
+      }
+      res.writeHead(status, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'Content-Encoding': 'gzip',
+        Vary: 'Accept-Encoding',
+        'Content-Length': compressed.length,
+        ...extraHeaders,
+      });
+      res.end(compressed);
+    });
+    return;
+  }
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
@@ -366,7 +392,18 @@ async function handleApi(req, res, pathname, url, manager, tunnel, hub, watcher,
     if (method === 'GET' && !action) {
       const found = manager.get(id);
       if (!found) return fail(res, 404, '会话不存在', 'NOT_FOUND');
-      return json(res, 200, { session: manager.snapshot(found, { includeMessages: true }) });
+      const session = manager.snapshot(found, { includeMessages: true });
+      const total = Array.isArray(session.messages) ? session.messages.length : 0;
+      const requested = Number(url.searchParams.get('limit'));
+      const limit = Number.isFinite(requested) ? Math.max(20, Math.min(1000, Math.floor(requested))) : 120;
+      if (total > limit) {
+        session.messages = session.messages.slice(-limit);
+        session.hasMore = true;
+      } else {
+        session.hasMore = false;
+      }
+      session.messageCount = total;
+      return json(res, 200, { session });
     }
     if (method === 'POST' && action === 'prompt') {
       const body = await readJson(req);
@@ -402,7 +439,9 @@ async function handleApi(req, res, pathname, url, manager, tunnel, hub, watcher,
   const pluginMatch = pathname.match(/^\/api\/claude\/plugin\/sessions\/([0-9a-f-]+)$/i);
   if (method === 'GET' && pluginMatch) {
     if (!watcher) return fail(res, 503, '插件监视器未启动', 'NOT_AVAILABLE');
-    const data = await watcher.getSession(pluginMatch[1]);
+    const requested = Number(url.searchParams.get('limit'));
+    const limit = Number.isFinite(requested) ? Math.max(20, Math.min(1000, Math.floor(requested))) : 120;
+    const data = await watcher.getSession(pluginMatch[1], { limit });
     return json(res, 200, data);
   }
   const pluginMessageMatch = pathname.match(/^\/api\/claude\/plugin\/sessions\/([0-9a-f-]+)\/message$/i);
@@ -684,6 +723,21 @@ async function serveFile(req, res, filePath, stat = null) {
   const isHtml = ext === '.html';
   const isServiceWorker = path.basename(filePath) === 'sw.js';
   const isCode = ['.js', '.mjs', '.css', '.webmanifest'].includes(ext);
+  const compressible = (isHtml || isCode || type.startsWith('text/') || type.includes('json') || type.includes('svg'))
+    && info.size > 1024;
+  const accept = String(req.headers['accept-encoding'] || '');
+  if (compressible && /\bgzip\b/.test(accept)) {
+    res.writeHead(200, {
+      'Content-Type': type,
+      'Cache-Control': isHtml || isServiceWorker || isCode ? 'no-cache' : 'public, max-age=86400',
+      'Content-Encoding': 'gzip',
+      Vary: 'Accept-Encoding',
+    });
+    if (req.method === 'HEAD') return res.end();
+    fs.createReadStream(filePath).on('error', () => { try { res.destroy(); } catch {} })
+      .pipe(zlib.createGzip()).pipe(res);
+    return;
+  }
   res.writeHead(200, {
     'Content-Type': type,
     'Content-Length': info.size,

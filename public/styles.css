@@ -379,6 +379,12 @@ button.full, .full { width: 100%; }
   scroll-behavior: smooth;
 }
 .messages > * { max-width: 100%; min-width: 0; }
+.load-older {
+  align-self: center; flex: 0 0 auto; border: 1px solid var(--line);
+  background: rgba(17, 26, 43, 0.82); color: var(--muted); border-radius: 999px;
+  padding: 7px 13px; font-size: 11px; cursor: pointer;
+}
+.load-older:active { color: var(--accent); border-color: rgba(110, 231, 216, 0.35); }
 .msg { display: flex; flex-direction: column; min-width: 0; max-width: 92%; }
 @keyframes msgIn { from { opacity: 0; transform: translateY(5px); } }
 .msg.user { align-self: flex-end; align-items: flex-end; min-width: 0; max-width: 88%; }

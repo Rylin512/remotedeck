@@ -403,7 +403,8 @@ export class PluginWatcher {
     return null;
   }
 
-  async getSession(id) {
+  async getSession(id, { limit = 120 } = {}) {
+    const maxMessages = Math.max(20, Math.min(1000, Number(limit) || 120));
     if (!/^[0-9a-f-]{20,}$/i.test(String(id))) {
       throw Object.assign(new Error('无效的会话 ID'), { status: 400 });
     }
@@ -454,6 +455,8 @@ export class PluginWatcher {
     fresh.events.sort((a, b) => (Date.parse(a.ts || '') || 0) - (Date.parse(b.ts || '') || 0));
     fresh.title = state.title || fresh.title;
     fresh.pendingTools = state.pendingTools;
+    const total = fresh.events.length;
+    const messages = total > maxMessages ? fresh.events.slice(-maxMessages) : fresh.events;
     return {
       session: {
         id: state.id,
@@ -463,11 +466,12 @@ export class PluginWatcher {
         lastModified: state.lastModified,
         status: this.statusOf(state),
         pendingTools: state.pendingTools.size,
-        messageCount: fresh.events.length,
+        messageCount: total,
+        hasMore: messages.length < total,
         live: this.isLive(state.id),
         peerName: this.peerRows.get(state.id)?.name || '',
       },
-      messages: fresh.events.slice(-MAX_EVENTS),
+      messages,
     };
   }
 }
