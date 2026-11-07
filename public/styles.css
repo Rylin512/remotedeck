@@ -132,7 +132,7 @@ code, pre { font-family: var(--mono); }
 .auth-foot { color: var(--faint); font-size: 11.5px; margin-top: 18px; text-align: center; }
 
 /* ---------- Shell ---------- */
-.shell { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
+.shell { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; background: transparent; }
 .topbar {
   height: calc(var(--topbar-h) + var(--safe-top));
   padding: var(--safe-top) 16px 0;
