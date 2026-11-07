@@ -17,6 +17,7 @@ RemoteDeck 在 Windows 本机运行一个小型控制服务：手机浏览器通
 - [系统架构](#系统架构)
 - [快速开始](#快速开始)
 - [桌面版与系统托盘](#桌面版与系统托盘)
+- [Android App](#android-app)
 - [手机连接](#手机连接)
 - [Claude Code 集成](#claude-code-集成)
 - [项目结构](#项目结构)
@@ -60,6 +61,7 @@ RemoteDeck 在 Windows 本机运行一个小型控制服务：手机浏览器通
 | 插件回复 | RemoteDeck 注册为可寻址的本地 peer，插件 Claude 的回复能回到 RemoteDeck |
 | 电源控制 | 关机、重启、锁定、睡眠、取消关机；延时执行，中文确认词，审计留痕 |
 | 桌面版 | Electron 独立窗口、任务栏托盘、单击呼出、右键操作、单实例、退出时关闭内置服务 |
+| Android App | WebView 独立应用；扫码添加设备、Cookie 保持登录、多设备切换、多窗口分屏 |
 | 一键安装 | NSIS 安装包内置 Electron 与 Node 运行时，目标电脑无需安装 Node 或项目目录 |
 | 远程访问 | Cloudflare Quick Tunnel、Tailscale Serve/Tailscale IP 直连、本机/局域网监听 |
 | 零运行时依赖 | 安装版自带 Node/Electron；源码运行需要 Node.js 20+ |
@@ -152,6 +154,19 @@ npm run desktop
 ```
 
 首次运行且项目路径包含中文时，会把 Electron 运行时缓存到 `%LOCALAPPDATA%\RemoteDeck\runtime\`，以避开 Chromium 对非 ASCII 路径的兼容问题；安装版不受此影响。
+
+## Android App
+
+从 [Releases](https://github.com/Rylin512/remotedeck/releases) 下载 `RemoteDeck-Android-0.1.0.apk`，侧载安装。
+
+- 首次打开扫描电脑上 RemoteDeck 显示的二维码，自动保存地址。
+- 登录一次后 WebView Cookie 会保留，下次启动直接进入最近设备。
+- 首页可保存多台电脑；顶部「设备」切换，「多开」创建独立任务，可配合 Android 分屏。
+- 地址属于 Tailscale（`100.64.0.0/10` 或 `*.ts.net`）时，会尝试发送 Tailscale `CONNECT_VPN` 广播并延迟加载；失败时显示「打开 Tailscale」。
+- Android 不允许普通 App 强制开启另一个 App 的 VPN。若广播被系统忽略，请把 Tailscale 设为「始终开启的 VPN」，或每次从 App 内打开 Tailscale。
+- APK 为 debug 签名，适合个人侧载，不适合上架应用商店。
+
+源码在 [`android/`](android/)，构建方法见 [android/README.md](android/README.md)。
 
 ## 手机连接
 

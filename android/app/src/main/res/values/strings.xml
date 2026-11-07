@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">RemoteDeck</string>
+    <string name="tagline">手机控制台 · 连接你的电脑</string>
+    <string name="scan_qr">扫描二维码添加设备</string>
+    <string name="manual_url">手动输入地址</string>
+    <string name="tailscale">打开 Tailscale</string>
+    <string name="no_devices">还没有设备。扫描电脑上 RemoteDeck 显示的二维码，或手动输入访问地址。</string>
+    <string name="hint">首次扫描后登录一次，之后会保留登录状态。不同电脑可添加多个设备。</string>
+    <string name="scan_prompt">扫描 RemoteDeck 二维码</string>
+    <string name="url_hint">http://100.x.x.x:8787/</string>
+    <string name="url_title">添加设备地址</string>
+    <string name="open">打开</string>
+    <string name="new_window">多开</string>
+    <string name="delete">删除</string>
+    <string name="delete_title">删除设备？</string>
+    <string name="delete_message">只会删除本地保存的地址，不影响电脑上的 RemoteDeck。</string>
+    <string name="cancel">取消</string>
+    <string name="save">保存</string>
+    <string name="devices">‹ 设备</string>
+    <string name="reload">刷新</string>
+    <string name="retry">重试</string>
+    <string name="open_tailscale">打开 Tailscale</string>
+    <string name="error_loading">页面加载失败</string>
+    <string name="tailscale_missing">未安装 Tailscale。请先安装并登录，再回到 RemoteDeck。</string>
+    <string name="tailscale_opening">正在尝试连接 Tailscale…</string>
+    <string name="manual_title">输入电脑地址</string>
+    <string name="invalid_url">请输入以 http:// 或 https:// 开头的地址</string>
+</resources>

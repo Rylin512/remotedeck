@@ -12,3 +12,8 @@ start-hidden.vbs
 .tmp-*/
 .vscode-test-ext/
 shots/
+android/.gradle/
+android/app/build/
+android/local.properties
+*.apk
+*.jks

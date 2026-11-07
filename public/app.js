@@ -252,6 +252,12 @@ function getNoSleep() {
   return S.noSleep;
 }
 
+function syncNativeKeepAwake() {
+  try {
+    window.RemoteDeckNative?.setKeepScreenOn?.(Boolean(S.wakeLockEnabled));
+  } catch {}
+}
+
 async function requestWakeLock(showError = false) {
   if (!S.wakeLockEnabled || S.wakeLockActive) return;
   if (document.visibilityState !== 'visible') return;
@@ -303,6 +309,7 @@ async function requestWakeLock(showError = false) {
 
 async function setWakeLock(enabled) {
   S.wakeLockEnabled = Boolean(enabled);
+  syncNativeKeepAwake();
   if (enabled) localStorage.setItem('rd_wake_lock', '1');
   else localStorage.setItem('rd_wake_lock', '0');
   if (!enabled) {
@@ -319,6 +326,7 @@ async function setWakeLock(enabled) {
 
 function initWakeLock() {
   S.wakeLockEnabled = localStorage.getItem('rd_wake_lock') !== '0';
+  syncNativeKeepAwake();
   const toggle = $('#wake-lock-toggle');
   if (!toggle) return;
   toggle.checked = S.wakeLockEnabled;
