@@ -16,6 +16,8 @@ const S = {
   historyAllLoading: false,
   continueBusy: false,
   wakeLock: null,
+  wakeLockActive: false,
+  noSleep: null,
   wakeLockEnabled: false,
   pluginSession: null,
   pluginSessionId: null,
@@ -236,26 +238,52 @@ function hideThinkingIndicator() {
   updateComposerStatusRow();
 }
 
+function getNoSleep() {
+  if (!S.noSleep && typeof window.NoSleep === 'function') S.noSleep = new window.NoSleep();
+  return S.noSleep;
+}
+
 async function requestWakeLock(showError = false) {
-  if (!S.wakeLockEnabled) return;
+  if (!S.wakeLockEnabled || S.wakeLockActive) return;
+  if (document.visibilityState !== 'visible') return;
+  const noSleep = getNoSleep();
+  if (noSleep) {
+    try {
+      await noSleep.enable();
+      S.wakeLockActive = true;
+      S.wakeLock = null;
+      $('#wake-lock-toggle').checked = true;
+      $('#wake-lock-hint').textContent = window.isSecureContext
+        ? '屏幕常亮已开启；切到后台会自动释放，回来后重新获取。'
+        : '屏幕常亮已开启（HTTP 兼容模式，使用静音视频保持唤醒）。';
+      return;
+    } catch (err) {
+      S.wakeLockActive = false;
+      if (showError) toast(`开启屏幕常亮失败：${err.message}`, true);
+      // Fall through to the native Wake Lock API below.
+    }
+  }
   if (!('wakeLock' in navigator)) {
     S.wakeLockEnabled = false;
     localStorage.removeItem('rd_wake_lock');
-    renderSettings();
+    $('#wake-lock-toggle').checked = false;
+    $('#wake-lock-hint').textContent = '当前浏览器不支持屏幕常亮。';
     if (showError) toast('当前浏览器不支持屏幕常亮', true);
     return;
   }
-  if (document.visibilityState !== 'visible') return;
   try {
     S.wakeLock = await navigator.wakeLock.request('screen');
+    S.wakeLockActive = true;
     S.wakeLock.addEventListener('release', () => {
       S.wakeLock = null;
+      S.wakeLockActive = false;
       if (S.wakeLockEnabled) setTimeout(() => requestWakeLock(false), 800);
     });
     $('#wake-lock-toggle').checked = true;
     $('#wake-lock-hint').textContent = '屏幕常亮已开启；切到后台会自动释放，回来后重新获取。';
   } catch (err) {
     S.wakeLock = null;
+    S.wakeLockActive = false;
     S.wakeLockEnabled = false;
     localStorage.removeItem('rd_wake_lock');
     $('#wake-lock-toggle').checked = false;
@@ -269,8 +297,10 @@ async function setWakeLock(enabled) {
   if (enabled) localStorage.setItem('rd_wake_lock', '1');
   else localStorage.removeItem('rd_wake_lock');
   if (!enabled) {
+    try { S.noSleep?.disable(); } catch {}
     try { await S.wakeLock?.release(); } catch {}
     S.wakeLock = null;
+    S.wakeLockActive = false;
     $('#wake-lock-toggle').checked = false;
     $('#wake-lock-hint').textContent = '已关闭屏幕常亮。';
     return;
@@ -283,12 +313,18 @@ function initWakeLock() {
   const toggle = $('#wake-lock-toggle');
   if (!toggle) return;
   toggle.checked = S.wakeLockEnabled;
-  if (!('wakeLock' in navigator)) {
+  if (typeof window.NoSleep !== 'function' && !('wakeLock' in navigator)) {
     toggle.disabled = true;
     $('#wake-lock-hint').textContent = '当前浏览器不支持屏幕常亮。';
   }
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && S.wakeLockEnabled) void requestWakeLock(false);
+    if (document.visibilityState === 'visible' && S.wakeLockEnabled) {
+      const fallbackPaused = Boolean(S.noSleep?.noSleepVideo?.paused);
+      if (!S.wakeLockActive || fallbackPaused) {
+        S.wakeLockActive = false;
+        void requestWakeLock(false);
+      }
+    }
   });
   if (S.wakeLockEnabled) {
     document.addEventListener('pointerdown', () => void requestWakeLock(false), { once: true });
@@ -1110,10 +1146,11 @@ function renderSettings() {
   $('#allow-bypass-toggle').checked = Boolean(settings.allowBypassPermissions);
   $('#tunnel-autostart-toggle').checked = Boolean(settings.autoStartTunnel);
   $('#wake-lock-toggle').checked = S.wakeLockEnabled;
-  if (!('wakeLock' in navigator)) {
+  const canKeepAwake = typeof window.NoSleep === 'function' || ('wakeLock' in navigator);
+  if (!canKeepAwake) {
     $('#wake-lock-toggle').disabled = true;
     $('#wake-lock-hint').textContent = '当前浏览器不支持屏幕常亮。';
-  } else if (S.wakeLockEnabled && !S.wakeLock) {
+  } else if (S.wakeLockEnabled && !S.wakeLockActive) {
     $('#wake-lock-hint').textContent = '已开启；需要页面保持可见，首次触摸后重新获取。';
   }
   $('#session-count').textContent = S.state.security?.sessionCount ?? '—';
