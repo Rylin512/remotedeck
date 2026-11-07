@@ -347,20 +347,17 @@ button.full, .full { width: 100%; }
 .plugin-live-status { font-size: 9.5px; color: var(--ok); display: flex; align-items: center; gap: 5px; flex: 0 0 auto; }
 .plugin-live-status.idle { color: var(--muted); }
 .plugin-live-status .live-dot { width: 5px; height: 5px; }
-.plugin-send-mode {
-  display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px;
-  padding: 10px 12px 8px; margin-top: 6px;
-  border-top: 1px solid rgba(148, 163, 184, 0.1);
-  color: var(--faint); font-size: 10px;
+.plugin-mode-actions {
+  display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px 8px;
+  margin-left: auto; flex: 0 0 auto;
 }
-.plugin-send-mode > span { margin-right: auto; flex: 1 1 auto; }
-.plugin-send-mode button {
+.plugin-mode-actions button {
   border: 1px solid var(--line); background: rgba(17, 26, 43, 0.7);
   color: var(--muted); border-radius: 999px; padding: 6px 10px; font-size: 10px;
   white-space: nowrap;
 }
-.plugin-send-mode button.active { color: var(--accent); border-color: rgba(110, 231, 216, 0.4); background: rgba(110, 231, 216, 0.08); }
-.plugin-send-mode button[data-plugin-mode="interrupt"].active { color: var(--danger); border-color: rgba(255, 107, 122, 0.4); background: rgba(255, 107, 122, 0.08); }
+.plugin-mode-actions button.active { color: var(--accent); border-color: rgba(110, 231, 216, 0.4); background: rgba(110, 231, 216, 0.08); }
+.plugin-mode-actions button[data-plugin-mode="interrupt"].active { color: var(--danger); border-color: rgba(255, 107, 122, 0.4); background: rgba(255, 107, 122, 0.08); }
 
 
 /* ---------- Chat ---------- */
@@ -375,6 +372,7 @@ button.full, .full { width: 100%; }
 .chat-head-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 0 3px; }
 .chat-head-info strong { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chat-head-info span { font-size: 10.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.messages-area { position: relative; flex: 1 1 auto; min-height: 0; min-width: 0; display: flex; }
 .messages {
   flex: 1 1 auto; min-height: 0; min-width: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain;
   padding: 18px 14px 22px; display: flex; flex-direction: column; gap: 12px;
@@ -438,10 +436,15 @@ button.full, .full { width: 100%; }
 .thinking-label { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .thinking-tokens { margin-left: auto; flex: 0 0 auto; color: var(--faint); font-size: 10.5px; white-space: nowrap; }
 .thinking-indicator {
-  flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
-  padding: 5px 16px 6px; color: var(--muted); font-size: 11px; min-height: 28px;
+  flex: 1 1 auto; display: flex; align-items: center; gap: 8px;
+  min-width: 0; padding: 0; color: var(--muted); font-size: 11px; min-height: 28px;
 }
 .thinking-indicator[hidden] { display: none; }
+.composer-status-row {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 10px;
+  padding: 5px 12px 6px; min-width: 0;
+}
+.composer-status-row[hidden] { display: none; }
 #thinking-indicator-label { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .thinking-pulse {
   width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
@@ -478,7 +481,7 @@ button.full, .full { width: 100%; }
 .permission-inline button { margin-top: 8px; }
 
 .jump-bottom {
-  position: absolute; right: 18px; bottom: 118px; z-index: 5;
+  position: absolute; right: 18px; bottom: 12px; z-index: 5;
   border: 1px solid var(--line); background: rgba(17, 26, 43, 0.92); color: var(--text);
   border-radius: 999px; padding: 7px 11px; font-size: 10.5px; display: flex; align-items: center; gap: 4px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
@@ -710,10 +713,9 @@ dialog.sheet::backdrop { background: rgba(2, 5, 10, 0.82); }
   .chat-head-info strong { font-size: 12.5px; }
   .chat-head-info span { font-size: 9.5px; }
   .messages { padding: 14px 12px 18px; }
-  .plugin-send-mode { margin-top: 4px; padding: 8px 12px 7px; }
+  .composer-status-row { padding: 4px 8px 5px; gap: 6px; }
   .composer { margin: 5px 8px 0; }
   .view { padding-left: 14px; padding-right: 14px; }
-  .jump-bottom { bottom: 100px; }
 }
 
 /* ---------- Desktop ---------- */

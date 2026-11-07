@@ -12,7 +12,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icons/icon-192.png" sizes="192x192">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="/styles.css?v=20261107-20">
+  <link rel="stylesheet" href="/styles.css?v=20261107-21">
   <title>RemoteDeck</title>
 </head>
 <body>
@@ -209,13 +209,10 @@
             <button class="icon-btn" id="chat-menu-btn" aria-label="会话操作"><svg class="icon"><use href="#i-more"/></svg></button>
           </div>
 
-          <div id="messages" class="messages" role="log" aria-live="polite"></div>
-          <div id="thinking-indicator" class="thinking-indicator" hidden>
-            <span class="thinking-pulse" aria-hidden="true"></span>
-            <span id="thinking-indicator-label">Claude 正在思考…</span>
-            <span id="thinking-indicator-token"></span>
+          <div class="messages-area">
+            <div id="messages" class="messages" role="log" aria-live="polite"></div>
+            <button id="jump-bottom" class="jump-bottom" hidden>回到底部 <svg class="icon"><use href="#i-chevron"/></svg></button>
           </div>
-          <button id="jump-bottom" class="jump-bottom" hidden>回到底部 <svg class="icon"><use href="#i-chevron"/></svg></button>
 
           <div id="pending-permission-bar" class="permission-bar" hidden>
             <svg class="icon"><use href="#i-shield"/></svg>
@@ -230,10 +227,16 @@
             <button id="fork-history-btn" class="small-btn">创建副本</button>
           </div>
 
-          <div id="plugin-send-mode" class="plugin-send-mode" hidden>
-            <span>发送方式</span>
-            <button type="button" data-plugin-mode="nudge" class="active">微调 · 不打断</button>
-            <button type="button" data-plugin-mode="interrupt">直接打断</button>
+          <div id="composer-status-row" class="composer-status-row" hidden>
+            <div id="thinking-indicator" class="thinking-indicator" hidden>
+              <span class="thinking-pulse" aria-hidden="true"></span>
+              <span id="thinking-indicator-label">Claude 正在思考…</span>
+              <span id="thinking-indicator-token"></span>
+            </div>
+            <div id="plugin-send-mode" class="plugin-mode-actions" hidden>
+              <button type="button" data-plugin-mode="nudge" class="active">微调 · 不打断</button>
+              <button type="button" data-plugin-mode="interrupt">直接打断</button>
+            </div>
           </div>
 
           <form id="composer" class="composer">
@@ -591,6 +594,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script src="/app.js?v=20261107-20" type="module"></script>
+  <script src="/app.js?v=20261107-21" type="module"></script>
 </body>
 </html>

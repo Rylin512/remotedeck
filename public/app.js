@@ -191,17 +191,27 @@ function hideLaunchOverlay() {
   document.body.classList.remove('launching');
 }
 
+function updateComposerStatusRow() {
+  const row = $('#composer-status-row');
+  if (!row) return;
+  const actions = $('#plugin-send-mode');
+  const indicator = $('#thinking-indicator');
+  row.hidden = Boolean(actions?.hidden && indicator?.hidden);
+}
+
 function updateThinkingIndicator() {
   const box = $('#thinking-indicator');
   if (!box) return;
   if (S.historyView) {
     box.hidden = true;
+    updateComposerStatusRow();
     return;
   }
   const session = S.pluginSession || S.session;
   const running = session && !session.closed && ['starting', 'running'].includes(session.status);
   if (!running) {
     box.hidden = true;
+    updateComposerStatusRow();
     return;
   }
   const pendingTools = S.pluginSession ? Number(S.pluginSession.pendingTools) || 0 : 0;
@@ -213,11 +223,13 @@ function updateThinkingIndicator() {
     ? `${S.thinkingEstimated ? '约 ' : ''}${formatTokenCount(S.thinkingTokens)} tokens`
     : '';
   box.hidden = false;
+  updateComposerStatusRow();
 }
 
 function hideThinkingIndicator() {
   const box = $('#thinking-indicator');
   if (box) box.hidden = true;
+  updateComposerStatusRow();
 }
 
 async function waitForPluginSession(sessionId, seconds = 15) {
@@ -696,6 +708,7 @@ function updatePluginHeader() {
   $('#plugin-resume-inline').hidden = Boolean(s.live);
   $('#plugin-close-inline').hidden = !s.live;
   if (!s.live) $('#prompt-input').placeholder = '会话已结束，请点“继续对话”恢复';
+  updateComposerStatusRow();
 }
 
 async function openPluginSession(item) {
