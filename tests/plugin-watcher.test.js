@@ -59,6 +59,40 @@ test('sessions without a live process are not shown in the live list', async () 
   }
 });
 
+test('outgoing phone messages are not duplicated when the transcript catches up', async () => {
+  const root = await fs.mkdtemp(path.join(here, '..', '.tmp-plugin-phone-'));
+  const projects = path.join(root, 'projects');
+  const project = path.join(projects, 'c--Users-demo-project');
+  await fs.mkdir(project, { recursive: true });
+  const id = 'dddddddd-eeee-ffff-0000-111111111111';
+  const file = path.join(project, `${id}.jsonl`);
+  const base = { cwd: 'C:\\Users\\demo\\project', sessionId: id, timestamp: new Date().toISOString() };
+  await fs.writeFile(file, `${JSON.stringify({
+    ...base, type: 'user', uuid: 'u1', message: { role: 'user', content: 'hello' },
+  })}\n`);
+
+  const watcher = new PluginWatcher({ hub: { broadcast: () => {} }, projectsDir: projects, liveResolver: () => true });
+  watcher.start();
+  try {
+    await sleep(1300);
+    watcher.noteOutgoing(id, { msgId: 'phone-msg-1', text: '请创建 PR' });
+    await fs.appendFile(file, `${JSON.stringify({
+      ...base,
+      type: 'user',
+      uuid: 'u-phone-transcript',
+      origin: { kind: 'peer', from: 'remote-uuid', name: 'RemoteDeck', msg_id: 'different-id', body: '请创建 PR' },
+      message: { role: 'user', content: '请创建 PR' },
+    })}\n`);
+    await sleep(1600);
+    const data = await watcher.getSession(id);
+    const phoneMessages = data.messages.filter((m) => m.source === 'phone' && m.text === '请创建 PR');
+    assert.equal(phoneMessages.length, 1);
+  } finally {
+    watcher.stop();
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
 test('plugin watcher discovers and streams appended transcript lines', async () => {
   const root = await fs.mkdtemp(path.join(here, '..', '.tmp-plugin-'));
   const projects = path.join(root, 'projects');

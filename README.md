@@ -49,6 +49,9 @@ RemoteDeck 在 Windows 本机运行一个小型控制服务：手机浏览器通
 | 工具步骤标题 | Bash 显示描述或命令摘要，Read/Edit 显示路径，Todo/任务/MCP 等都有标题；长标题省略不溢出 |
 | 思考状态 | 显示「Claude 正在思考 / 正在执行工具 / 正在输出」和 token 用量，不展开思考正文 |
 | 会话状态 | 「正在对话 / 历史对话」跟随 SSE 事件即时更新，不依赖慢缓存 |
+| 选择题回答 | Claude 使用 AskUserQuestion 时，手机端可选择选项、多选或填写「其他」自定义答案 |
+| 防止熄屏 | 设置中可开启手机屏幕常亮；页面可见时保持，切后台自动释放 |
+| 消息去重 | 重新进入插件会话时，手机发出的消息与 transcript 中的副本自动合并，不再堆在底部 |
 | 全部历史 | 「显示全部记录」合并 SDK 会话列表与本地 transcript，包含 SDK 可能漏掉的记录 |
 | 自动恢复 | 继续历史会话时自动判断：复用运行中的会话、聚焦已有 VS Code 窗口、或拉起新窗口后恢复 |
 | VS Code 控制 | 列出正在运行的 VS Code 窗口并远程关闭；有未保存内容时由 VS Code 自己弹保存确认 |
@@ -273,7 +276,7 @@ npm run icon:generate              # 重新生成图标
 
 ```powershell
 npm run check     # 语法检查
-npm test          # 33 个自动化测试
+npm test          # 35 个自动化测试
 npm run desktop   # 桌面版
 ```
 

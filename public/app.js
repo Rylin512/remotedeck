@@ -15,6 +15,8 @@ const S = {
   historyAllError: null,
   historyAllLoading: false,
   continueBusy: false,
+  wakeLock: null,
+  wakeLockEnabled: false,
   pluginSession: null,
   pluginSessionId: null,
   pluginMode: 'nudge',
@@ -31,7 +33,9 @@ const S = {
   toolEls: new Map(),
   liveByMessage: new Map(),
   permissions: new Map(),
+  questions: new Map(),
   currentPermission: null,
+  currentQuestion: null,
   powerAction: null,
   autoScroll: true,
   qrUrl: null,
@@ -232,6 +236,65 @@ function hideThinkingIndicator() {
   updateComposerStatusRow();
 }
 
+async function requestWakeLock(showError = false) {
+  if (!S.wakeLockEnabled) return;
+  if (!('wakeLock' in navigator)) {
+    S.wakeLockEnabled = false;
+    localStorage.removeItem('rd_wake_lock');
+    renderSettings();
+    if (showError) toast('当前浏览器不支持屏幕常亮', true);
+    return;
+  }
+  if (document.visibilityState !== 'visible') return;
+  try {
+    S.wakeLock = await navigator.wakeLock.request('screen');
+    S.wakeLock.addEventListener('release', () => {
+      S.wakeLock = null;
+      if (S.wakeLockEnabled) setTimeout(() => requestWakeLock(false), 800);
+    });
+    $('#wake-lock-toggle').checked = true;
+    $('#wake-lock-hint').textContent = '屏幕常亮已开启；切到后台会自动释放，回来后重新获取。';
+  } catch (err) {
+    S.wakeLock = null;
+    S.wakeLockEnabled = false;
+    localStorage.removeItem('rd_wake_lock');
+    $('#wake-lock-toggle').checked = false;
+    $('#wake-lock-hint').textContent = '无法开启屏幕常亮；请使用 HTTPS 或 localhost 打开 RemoteDeck。';
+    if (showError) toast(`开启屏幕常亮失败：${err.message}`, true);
+  }
+}
+
+async function setWakeLock(enabled) {
+  S.wakeLockEnabled = Boolean(enabled);
+  if (enabled) localStorage.setItem('rd_wake_lock', '1');
+  else localStorage.removeItem('rd_wake_lock');
+  if (!enabled) {
+    try { await S.wakeLock?.release(); } catch {}
+    S.wakeLock = null;
+    $('#wake-lock-toggle').checked = false;
+    $('#wake-lock-hint').textContent = '已关闭屏幕常亮。';
+    return;
+  }
+  await requestWakeLock(true);
+}
+
+function initWakeLock() {
+  S.wakeLockEnabled = localStorage.getItem('rd_wake_lock') === '1';
+  const toggle = $('#wake-lock-toggle');
+  if (!toggle) return;
+  toggle.checked = S.wakeLockEnabled;
+  if (!('wakeLock' in navigator)) {
+    toggle.disabled = true;
+    $('#wake-lock-hint').textContent = '当前浏览器不支持屏幕常亮。';
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && S.wakeLockEnabled) void requestWakeLock(false);
+  });
+  if (S.wakeLockEnabled) {
+    document.addEventListener('pointerdown', () => void requestWakeLock(false), { once: true });
+  }
+}
+
 async function waitForPluginSession(sessionId, seconds = 15) {
   const until = Date.now() + seconds * 1000;
   while (Date.now() < until) {
@@ -305,6 +368,7 @@ document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
   bindEvents();
+  initWakeLock();
   registerServiceWorker();
   setupInstallPrompt();
   try {
@@ -431,6 +495,8 @@ function connectSSE() {
   es.addEventListener('claude', (evt) => onClaudeEvent(parseEvent(evt)));
   es.addEventListener('permission', (evt) => onPermissionEvent(parseEvent(evt)));
   es.addEventListener('permission_resolved', (evt) => onPermissionResolved(parseEvent(evt)));
+  es.addEventListener('question', (evt) => onQuestionEvent(parseEvent(evt)));
+  es.addEventListener('question_resolved', (evt) => onQuestionResolved(parseEvent(evt)));
   es.addEventListener('plugin_sessions', (evt) => onPluginSessions(parseEvent(evt)));
   es.addEventListener('plugin_event', (evt) => onPluginEvent(parseEvent(evt)));
   es.addEventListener('peer_reply', (evt) => onPeerReply(parseEvent(evt)));
@@ -474,6 +540,7 @@ function onSessionEvent(data) {
   }
   renderHistory();
   updateThinkingIndicator();
+  if (S.activeSessionId === session.id) syncQuestionsFromSession(session);
 }
 
 function onClaudeEvent(data) {
@@ -499,8 +566,43 @@ function onPermissionResolved(data) {
   if (S.currentPermission?.requestId === data.requestId) {
     hidePermissionDialog();
     setTimeout(() => {
+      const nextQuestion = [...S.questions.values()].find((q) => q.sessionId === S.activeSessionId);
+      if (nextQuestion) {
+        showQuestion(nextQuestion);
+        return;
+      }
       const next = [...S.permissions.values()].find((p) => p.sessionId === S.activeSessionId);
       if (next) showPermission(next);
+    }, 250);
+  }
+  renderPendingBar();
+}
+
+function onQuestionEvent(data) {
+  if (!data.question) return;
+  const question = { ...data.question, sessionId: data.sessionId, sessionTitle: data.sessionTitle };
+  S.questions.set(question.requestId, question);
+  renderPendingBar();
+  if (navigator.vibrate) navigator.vibrate([40, 40, 40]);
+  if (S.activeSessionId === question.sessionId && !$('#question-dialog').open) {
+    showQuestion(question);
+  } else {
+    toast('Claude 有问题需要你选择');
+  }
+}
+
+function onQuestionResolved(data) {
+  S.questions.delete(data.requestId);
+  if (S.currentQuestion?.requestId === data.requestId) {
+    S.currentQuestion = null;
+    if ($('#question-dialog').open) $('#question-dialog').close();
+    setTimeout(() => {
+      const next = [...S.questions.values()].find((q) => q.sessionId === S.activeSessionId);
+      if (next) showQuestion(next);
+      else {
+        const nextPermission = [...S.permissions.values()].find((p) => p.sessionId === S.activeSessionId);
+        if (nextPermission) showPermission(nextPermission);
+      }
     }, 250);
   }
   renderPendingBar();
@@ -613,6 +715,7 @@ function renderAll() {
     updateComposerState();
   }
   renderPendingBar();
+  if (S.session) syncQuestionsFromSession(S.session);
 }
 
 function renderRemotePill() {
@@ -1006,6 +1109,13 @@ function renderSettings() {
   if (document.activeElement !== $('#allowed-roots')) $('#allowed-roots').value = (settings.allowedRoots || []).join('\n');
   $('#allow-bypass-toggle').checked = Boolean(settings.allowBypassPermissions);
   $('#tunnel-autostart-toggle').checked = Boolean(settings.autoStartTunnel);
+  $('#wake-lock-toggle').checked = S.wakeLockEnabled;
+  if (!('wakeLock' in navigator)) {
+    $('#wake-lock-toggle').disabled = true;
+    $('#wake-lock-hint').textContent = '当前浏览器不支持屏幕常亮。';
+  } else if (S.wakeLockEnabled && !S.wakeLock) {
+    $('#wake-lock-hint').textContent = '已开启；需要页面保持可见，首次触摸后重新获取。';
+  }
   $('#session-count').textContent = S.state.security?.sessionCount ?? '—';
   $('#settings-host').textContent = S.state.system?.hostname || '—';
   $('#settings-port').textContent = settings.port ?? '—';
@@ -1087,6 +1197,7 @@ async function loadSession(id) {
   renderPendingBar();
   scrollBottom(true);
   updateThinkingIndicator();
+  syncQuestionsFromSession(S.session);
 }
 
 function showActive() {
@@ -1106,6 +1217,8 @@ function showEmptyChat() {
   S.pluginSessionId = null;
   S.thinkingTokens = 0;
   S.currentActivity = null;
+  S.currentQuestion = null;
+  if ($('#question-dialog')?.open) $('#question-dialog').close();
   hideThinkingIndicator();
   localStorage.removeItem('rd_active_session');
   $('#chat-empty').hidden = false;
@@ -1223,12 +1336,33 @@ function updateComposerState() {
 }
 
 function renderPendingBar() {
-  const pending = [...S.permissions.values()].filter((p) => !S.activeSessionId || p.sessionId === S.activeSessionId);
-  $('#pending-permission-bar').hidden = pending.length === 0;
-  if (pending.length) {
-    $('#pending-permission-bar').querySelector('span').textContent = `${pending.length} 个操作等待你的批准`;
+  const permissions = [...S.permissions.values()].filter((p) => !S.activeSessionId || p.sessionId === S.activeSessionId);
+  const questions = [...S.questions.values()].filter((q) => !S.activeSessionId || q.sessionId === S.activeSessionId);
+  const pending = permissions.length + questions.length;
+  $('#pending-permission-bar').hidden = pending === 0;
+  if (pending) {
+    const parts = [];
+    if (permissions.length) parts.push(`${permissions.length} 个操作等待批准`);
+    if (questions.length) parts.push(`${questions.length} 个问题等待选择`);
+    $('#pending-permission-bar').querySelector('span').textContent = parts.join(' · ');
   }
-  document.title = pending.length ? `(${pending.length}) RemoteDeck` : 'RemoteDeck';
+  document.title = pending ? `(${pending}) RemoteDeck` : 'RemoteDeck';
+}
+
+function syncQuestionsFromSession(session) {
+  if (!session?.pendingQuestions) return;
+  const active = new Set(session.pendingQuestions.map((q) => q.requestId));
+  for (const question of S.questions.values()) {
+    if (question.sessionId === session.id && !active.has(question.requestId)) S.questions.delete(question.requestId);
+  }
+  for (const question of session.pendingQuestions) {
+    S.questions.set(question.requestId, { ...question, sessionId: session.id, sessionTitle: session.title });
+  }
+  renderPendingBar();
+  if (S.activeSessionId === session.id && !S.currentQuestion && !$('#permission-dialog').open) {
+    const next = [...S.questions.values()].find((q) => q.sessionId === session.id);
+    if (next) showQuestion(next);
+  }
 }
 
 function renderMessages(messages, { scroll = true } = {}) {
@@ -1467,6 +1601,111 @@ async function resolveCurrentPermission(decision, always = false) {
   } catch (err) {
     toast(err.message, true);
   }
+}
+
+/* ---------------- AskUserQuestion ---------------- */
+
+function showQuestion(question) {
+  if (!question || $('#question-dialog').open || $('#permission-dialog').open) return;
+  S.currentQuestion = question;
+  $('#question-error').textContent = '';
+  const list = $('#question-list');
+  list.innerHTML = question.questions.map((item, questionIndex) => {
+    const type = item.multiSelect ? 'checkbox' : 'radio';
+    const name = `question-${question.requestId}-${questionIndex}`;
+    const options = item.options.map((option, optionIndex) => `
+      <label class="question-option">
+        <input type="${type}" name="${escapeHtml(name)}" value="${escapeHtml(option.label)}" data-question-option="${questionIndex}">
+        <span>${escapeHtml(option.label)}${option.description ? `<small>${escapeHtml(option.description)}</small>` : ''}</span>
+      </label>`).join('');
+    return `
+      <div class="question-block" data-question-index="${questionIndex}">
+        ${item.header ? `<div class="question-header">${escapeHtml(item.header)}</div>` : ''}
+        <div class="question-title">${escapeHtml(item.question)}</div>
+        <div class="question-options">
+          ${options}
+          <label class="question-option">
+            <input type="${type}" name="${escapeHtml(name)}" value="__other__" data-question-option="${questionIndex}" data-other-option="${questionIndex}">
+            <span>其他<small>输入自定义答案</small></span>
+          </label>
+        </div>
+        <input class="question-other-input" data-other-input="${questionIndex}" placeholder="输入自定义答案…" autocomplete="off">
+      </div>`;
+  }).join('');
+  list.querySelectorAll('[data-other-input]').forEach((input) => {
+    input.addEventListener('input', () => {
+      if (!input.value.trim()) return;
+      const option = list.querySelector(`[data-other-option="${input.dataset.otherInput}"]`);
+      if (option) option.checked = true;
+    });
+  });
+  $('#question-dialog').showModal();
+}
+
+async function submitQuestion() {
+  const question = S.currentQuestion;
+  if (!question) return;
+  const error = $('#question-error');
+  error.textContent = '';
+  const answers = {};
+  for (let index = 0; index < question.questions.length; index += 1) {
+    const item = question.questions[index];
+    const block = $(`[data-question-index="${index}"]`, $('#question-list'));
+    const checked = [...block.querySelectorAll('input[data-question-option]:checked')];
+    if (!checked.length) {
+      error.textContent = `请先回答：${item.header || item.question}`;
+      return;
+    }
+    const values = [];
+    for (const input of checked) {
+      if (input.value === '__other__') {
+        const custom = block.querySelector('[data-other-input]')?.value.trim();
+        if (!custom) {
+          error.textContent = `请填写「${item.header || item.question}」的自定义答案`;
+          return;
+        }
+        values.push(custom);
+      } else {
+        values.push(input.value);
+      }
+    }
+    answers[item.question] = values.join(', ');
+  }
+  const button = $('#question-submit');
+  setButtonBusy(button, true, '提交中…');
+  try {
+    await api(`/api/claude/sessions/${question.sessionId}/question`, {
+      method: 'POST',
+      body: { requestId: question.requestId, answers },
+    });
+    S.questions.delete(question.requestId);
+    S.currentQuestion = null;
+    $('#question-dialog').close();
+    renderPendingBar();
+    toast('已提交选择');
+  } catch (err) {
+    error.textContent = err.message;
+  } finally {
+    setButtonBusy(button, false);
+  }
+}
+
+async function skipQuestion() {
+  const question = S.currentQuestion;
+  if (!question) return;
+  S.currentQuestion = null;
+  $('#question-dialog').close();
+  try {
+    await api(`/api/claude/sessions/${question.sessionId}/question`, {
+      method: 'POST',
+      body: { requestId: question.requestId, cancel: true },
+    });
+    S.questions.delete(question.requestId);
+    toast('已跳过问题');
+  } catch (err) {
+    toast(err.message, true);
+  }
+  renderPendingBar();
 }
 
 /* ---------------- Actions ---------------- */
@@ -1924,7 +2163,25 @@ function bindEvents() {
   $('#permission-allow').addEventListener('click', () => resolveCurrentPermission('allow', false));
   $('#permission-always').addEventListener('click', () => resolveCurrentPermission('allow', true));
   $('#permission-deny').addEventListener('click', () => resolveCurrentPermission('deny', false));
+  $('#question-submit').addEventListener('click', () => submitQuestion().catch((err) => toast(err.message, true)));
+  $('#question-cancel').addEventListener('click', () => skipQuestion().catch((err) => toast(err.message, true)));
+  $('#question-dialog').addEventListener('close', () => {
+    if (!S.currentQuestion) return;
+    const question = S.currentQuestion;
+    S.currentQuestion = null;
+    void api(`/api/claude/sessions/${question.sessionId}/question`, {
+      method: 'POST',
+      body: { requestId: question.requestId, cancel: true },
+    }).catch(() => {});
+    S.questions.delete(question.requestId);
+    renderPendingBar();
+  });
   $('#review-permission-btn').addEventListener('click', () => {
+    const question = [...S.questions.values()].find((q) => q.sessionId === S.activeSessionId);
+    if (question) {
+      showQuestion(question);
+      return;
+    }
     const first = [...S.permissions.values()].find((p) => p.sessionId === S.activeSessionId);
     if (first) showPermission(first);
   });
@@ -1932,6 +2189,7 @@ function bindEvents() {
   $$('[data-power]').forEach((button) => button.addEventListener('click', () => openPowerDialog(button.dataset.power)));
   $('#power-confirm-btn').addEventListener('click', confirmPower);
   $('#autostart-toggle').addEventListener('change', (event) => toggleAutostart(event.target.checked));
+  $('#wake-lock-toggle').addEventListener('change', (event) => setWakeLock(event.target.checked));
 
   $('#open-claude-panel-btn').addEventListener('click', () => openClaudePanel('panel'));
   $('#open-claude-terminal-btn').addEventListener('click', () => openClaudePanel('terminal'));

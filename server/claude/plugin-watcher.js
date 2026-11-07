@@ -72,6 +72,23 @@ async function readTail(file, size, maxBytes = MAX_TAIL_BYTES) {
   return parseJsonLines(text, { dropPartialFirst: start > 0 });
 }
 
+function phoneEventKey(event) {
+  return String(event?.text || '').replace(/\s+/g, ' ').trim();
+}
+
+function takeMatchingLocalPhone(state, event) {
+  const text = phoneEventKey(event);
+  const ts = Date.parse(event.ts || '') || Date.now();
+  const index = state.localEvents.findIndex((local) => {
+    if (local.id === event.id) return true;
+    if (phoneEventKey(local) !== text) return false;
+    const localTs = Date.parse(local.ts || '') || ts;
+    return Math.abs(localTs - ts) < 15 * 60_000;
+  });
+  if (index < 0) return null;
+  return state.localEvents.splice(index, 1)[0] || null;
+}
+
 function normalizeLine(entry, state) {
   if (!entry || typeof entry !== 'object' || entry.isSidechain === true) return [];
   if (entry.type === 'ai-title' && entry.aiTitle) {
@@ -211,6 +228,11 @@ export class PluginWatcher {
     for (const entry of entries) {
       const events = normalizeLine(entry, state);
       for (const event of events) {
+        if (event.event === 'user' && event.source === 'phone' && takeMatchingLocalPhone(state, event)) {
+          // The immediate phone bubble was already broadcast and is now also
+          // present in the transcript. Keep only one copy.
+          continue;
+        }
         state.events.push(event);
         state.messageCount += 1;
         allEvents.push(event);
@@ -412,6 +434,16 @@ export class PluginWatcher {
     }
     for (const event of state.localEvents || []) {
       if (seen.has(event.id)) continue;
+      const localText = phoneEventKey(event);
+      const localTs = Date.parse(event.ts || '') || 0;
+      const alreadyInTranscript = fresh.events.some((item) => {
+        if (item.event !== 'user' || item.source !== 'phone') return false;
+        if (item.id === event.id) return true;
+        if (phoneEventKey(item) !== localText) return false;
+        const itemTs = Date.parse(item.ts || '') || 0;
+        return Math.abs(itemTs - localTs) < 15 * 60_000;
+      });
+      if (alreadyInTranscript) continue;
       seen.add(event.id);
       fresh.events.push(event);
     }
@@ -419,6 +451,7 @@ export class PluginWatcher {
       fresh.lastModified = stat.mtimeMs;
       state.lastModified = stat.mtimeMs;
     }
+    fresh.events.sort((a, b) => (Date.parse(a.ts || '') || 0) - (Date.parse(b.ts || '') || 0));
     fresh.title = state.title || fresh.title;
     fresh.pendingTools = state.pendingTools;
     return {

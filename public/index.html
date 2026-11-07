@@ -12,7 +12,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icons/icon-192.png" sizes="192x192">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="/styles.css?v=20261107-21">
+  <link rel="stylesheet" href="/styles.css?v=20261107-23">
   <title>RemoteDeck</title>
 </head>
 <body>
@@ -437,6 +437,15 @@
         </div>
 
         <div class="card">
+          <div class="card-head"><h2>手机屏幕</h2><svg class="icon accent"><use href="#i-eye"/></svg></div>
+          <div class="switch-row">
+            <div><strong>防止自动熄屏</strong><span class="muted small">查看 Claude 时保持屏幕常亮；需要 HTTPS 或 localhost。</span></div>
+            <label class="switch"><input type="checkbox" id="wake-lock-toggle"><span></span></label>
+          </div>
+          <p class="hint" id="wake-lock-hint">开启后，本页面可见时会请求屏幕常亮；切到后台会自动释放。</p>
+        </div>
+
+        <div class="card">
           <div class="card-head"><h2>安全</h2><svg class="icon accent"><use href="#i-shield"/></svg></div>
           <div class="security-row"><span>已登录设备</span><strong id="session-count">—</strong></div>
           <div class="security-row"><span>服务器版本</span><strong id="security-version">—</strong></div>
@@ -492,6 +501,22 @@
       <button class="primary" id="permission-allow">允许一次</button>
       <button class="secondary" id="permission-always">本会话总是允许</button>
       <button class="ghost danger-text" id="permission-deny">拒绝</button>
+    </div>
+  </dialog>
+
+  <dialog id="question-dialog" class="sheet question-sheet">
+    <div class="sheet-grip"></div>
+    <div class="sheet-head">
+      <div><div class="eyebrow">CLAUDE ASKS</div><h2>Claude 需要你选择</h2></div>
+      <button class="icon-btn" data-close-dialog="question-dialog" aria-label="关闭"><svg class="icon"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="sheet-body">
+      <div id="question-list" class="question-list"></div>
+      <div id="question-error" class="form-error" role="alert"></div>
+    </div>
+    <div class="sheet-actions stack">
+      <button class="primary" id="question-submit">提交选择</button>
+      <button class="ghost danger-text" id="question-cancel">跳过并让 Claude 继续</button>
     </div>
   </dialog>
 
@@ -594,6 +619,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script src="/app.js?v=20261107-21" type="module"></script>
+  <script src="/app.js?v=20261107-23" type="module"></script>
 </body>
 </html>

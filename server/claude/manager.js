@@ -129,6 +129,7 @@ export class ClaudeManager {
       lastError: session.lastError,
       claudeCodeVersion: session.claudeCodeVersion,
       pendingPermissions: [...session.pendingPermissions.values()].map((p) => this.permissionSnapshot(p)),
+      pendingQuestions: [...(session.pendingQuestions || new Map()).values()].map((q) => this.questionSnapshot(q)),
       messageCount: session.messages.length,
       resumedFrom: session.resumedFrom || null,
     };
@@ -151,6 +152,110 @@ export class ClaudeManager {
       canAlwaysAllow: !p.suppressAlwaysAllowRule && Array.isArray(p.suggestions) && p.suggestions.length > 0,
       agentId: p.agentId || null,
     };
+  }
+
+  questionSnapshot(q) {
+    return {
+      requestId: q.requestId,
+      questions: q.questions,
+      createdAt: q.createdAt,
+    };
+  }
+
+  normalizeQuestions(input) {
+    const source = Array.isArray(input?.questions) ? input.questions : [];
+    return source.slice(0, 10).map((question, index) => ({
+      question: clip(String(question?.question || `问题 ${index + 1}`), 1200),
+      header: clip(String(question?.header || ''), 120),
+      multiSelect: Boolean(question?.multiSelect),
+      options: (Array.isArray(question?.options) ? question.options : []).slice(0, 20).map((option) => ({
+        label: clip(String(option?.label || option?.value || ''), 300),
+        description: clip(String(option?.description || ''), 600),
+      })).filter((option) => option.label),
+    })).filter((question) => question.question && question.options.length > 0);
+  }
+
+  askUserQuestion(session, input, opts) {
+    if (!(session.pendingQuestions instanceof Map)) session.pendingQuestions = new Map();
+    const questions = this.normalizeQuestions(input);
+    if (!questions.length) {
+      return Promise.resolve({ behavior: 'allow', updatedInput: { ...input, answers: {} } });
+    }
+    const requestId = opts?.requestId || crypto.randomUUID();
+    const pending = {
+      requestId,
+      questions,
+      input,
+      createdAt: Date.now(),
+      resolve: null,
+      timer: null,
+    };
+    const promise = new Promise((resolve) => { pending.resolve = resolve; });
+    pending.timer = setTimeout(() => {
+      if (!session.pendingQuestions.has(requestId)) return;
+      this.finishQuestion(session, pending, { behavior: 'deny', message: '手机端回答超时（10 分钟）' });
+    }, PERMISSION_TIMEOUT_MS);
+    pending.timer.unref?.();
+    session.pendingQuestions.set(requestId, pending);
+    session.status = 'waiting_permission';
+    session.streaming = true;
+    this.hub?.broadcast('question', {
+      sessionId: session.id,
+      sessionTitle: session.title,
+      question: this.questionSnapshot(pending),
+    });
+    this.broadcastSession(session);
+    audit('claude.question', `${session.title}: ${questions.length} 个问题`);
+    return promise;
+  }
+
+  finishQuestion(session, pending, result) {
+    if (!session.pendingQuestions.has(pending.requestId)) return false;
+    clearTimeout(pending.timer);
+    session.pendingQuestions.delete(pending.requestId);
+    try { pending.resolve(result); } catch {}
+    if (session.status === 'waiting_permission'
+      && session.pendingPermissions.size === 0
+      && session.pendingQuestions.size === 0
+      && !session.closed) {
+      session.status = 'running';
+    }
+    this.hub?.broadcast('question_resolved', {
+      sessionId: session.id,
+      requestId: pending.requestId,
+      behavior: result.behavior,
+    });
+    this.broadcastSession(session);
+    return true;
+  }
+
+  resolveQuestion(id, requestId, answers = {}) {
+    const session = this.sessions.get(id);
+    if (!session) throw Object.assign(new Error('会话不存在'), { status: 404 });
+    const pending = session.pendingQuestions.get(requestId);
+    if (!pending) throw Object.assign(new Error('问题不存在或已回答'), { status: 404 });
+    const normalized = {};
+    for (const question of pending.questions) {
+      const raw = answers?.[question.question] ?? answers?.[question.header] ?? '';
+      const value = Array.isArray(raw) ? raw.map(String).filter(Boolean).join(', ') : String(raw || '').trim();
+      if (!value) throw Object.assign(new Error(`请先回答：${question.header || question.question}`), { status: 400 });
+      normalized[question.question] = clip(value, 2000);
+    }
+    const ok = this.finishQuestion(session, pending, {
+      behavior: 'allow',
+      updatedInput: { ...pending.input, answers: normalized },
+    });
+    if (ok) audit('claude.question.resolve', `${session.title}: ${Object.keys(normalized).length} 个问题`);
+    return { ok };
+  }
+
+  cancelQuestion(id, requestId) {
+    const session = this.sessions.get(id);
+    if (!session) throw Object.assign(new Error('会话不存在'), { status: 404 });
+    const pending = session.pendingQuestions.get(requestId);
+    if (!pending) throw Object.assign(new Error('问题不存在或已回答'), { status: 404 });
+    this.finishQuestion(session, pending, { behavior: 'deny', message: '用户未回答选择问题' });
+    return { ok: true };
   }
 
   async create({ cwd, permissionMode, model, resume, forkSession = true, title } = {}) {
@@ -186,6 +291,7 @@ export class ClaudeManager {
       claudeCodeVersion: null,
       messages: [],
       pendingPermissions: new Map(),
+      pendingQuestions: new Map(),
       streamState: { messageId: null },
       streaming: false,
       queue,
@@ -335,6 +441,9 @@ export class ClaudeManager {
     for (const pending of [...session.pendingPermissions.values()]) {
       this.finishPermission(session, pending, { behavior: 'deny', message: '用户中断了当前任务' });
     }
+    for (const pending of [...session.pendingQuestions.values()]) {
+      this.finishQuestion(session, pending, { behavior: 'deny', message: '用户中断了当前任务' });
+    }
     try {
       const receipt = await session.query?.interrupt();
       session.status = 'idle';
@@ -361,6 +470,9 @@ export class ClaudeManager {
     session.streaming = false;
     for (const pending of [...session.pendingPermissions.values()]) {
       this.finishPermission(session, pending, { behavior: 'deny', message: '会话已停止' });
+    }
+    for (const pending of [...session.pendingQuestions.values()]) {
+      this.finishQuestion(session, pending, { behavior: 'deny', message: '会话已停止' });
     }
     session.queue.close();
     try { session.query?.close(); } catch {}
@@ -389,7 +501,7 @@ export class ClaudeManager {
   async handleCanUseTool(session, toolName, input, opts) {
     if (session.closed) return { behavior: 'deny', message: '会话已停止' };
     if (toolName === 'AskUserQuestion') {
-      return { behavior: 'deny', message: '手机端暂不支持回答选择问卷；请在电脑上的 Claude Code 中继续。' };
+      return this.askUserQuestion(session, input, opts);
     }
     const requestId = opts.requestId || crypto.randomUUID();
     const pending = {

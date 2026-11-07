@@ -359,7 +359,7 @@ async function handleApi(req, res, pathname, url, manager, tunnel, hub, watcher,
     return json(res, 201, { session: created });
   }
 
-  const sessionMatch = pathname.match(/^\/api\/claude\/sessions\/([0-9a-f-]+)(?:\/(prompt|interrupt|stop|permission|mode))?$/i);
+  const sessionMatch = pathname.match(/^\/api\/claude\/sessions\/([0-9a-f-]+)(?:\/(prompt|interrupt|stop|permission|question|mode))?$/i);
   if (sessionMatch) {
     const [, id, action] = sessionMatch;
     if (method === 'GET' && !action) {
@@ -383,6 +383,11 @@ async function handleApi(req, res, pathname, url, manager, tunnel, hub, watcher,
       return json(res, 200, manager.resolvePermission(id, String(body.requestId || ''), body.decision, {
         always: Boolean(body.always),
       }));
+    }
+    if (method === 'POST' && action === 'question') {
+      const body = await readJson(req);
+      if (body.cancel) return json(res, 200, manager.cancelQuestion(id, String(body.requestId || '')));
+      return json(res, 200, manager.resolveQuestion(id, String(body.requestId || ''), body.answers || {}));
     }
     if (method === 'POST' && action === 'mode') {
       const body = await readJson(req);
