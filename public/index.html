@@ -12,7 +12,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icons/icon-192.png" sizes="192x192">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="/styles.css?v=20261107-32">
+  <link rel="stylesheet" href="/styles.css?v=20261107-33">
   <title>RemoteDeck</title>
 </head>
 <body>
@@ -214,44 +214,46 @@
             <button id="jump-bottom" class="jump-bottom" hidden>回到底部 <svg class="icon"><use href="#i-chevron"/></svg></button>
           </div>
 
-          <div id="pending-permission-bar" class="permission-bar" hidden>
-            <svg class="icon"><use href="#i-shield"/></svg>
-            <span>Claude 正在等待你的批准</span>
-            <button id="review-permission-btn" class="small-btn">查看</button>
-          </div>
-
-          <div id="history-bar" class="permission-bar" hidden>
-            <svg class="icon"><use href="#i-history"/></svg>
-            <span>正在查看历史会话（只读）</span>
-            <button id="resume-history-btn" class="small-btn">继续对话</button>
-            <button id="fork-history-btn" class="small-btn">创建副本</button>
-          </div>
-
-          <div id="composer-status-row" class="composer-status-row" hidden>
-            <div id="thinking-indicator" class="thinking-indicator" hidden>
-              <span class="thinking-pulse" aria-hidden="true"></span>
-              <span id="thinking-indicator-label">Claude 正在思考…</span>
-              <span id="thinking-indicator-token"></span>
+          <div id="composer-dock" class="composer-dock">
+            <div id="pending-permission-bar" class="permission-bar" hidden>
+              <svg class="icon"><use href="#i-shield"/></svg>
+              <span>Claude 正在等待你的批准</span>
+              <button id="review-permission-btn" class="small-btn">查看</button>
             </div>
-            <div id="plugin-send-mode" class="plugin-mode-actions" hidden>
-              <button type="button" data-plugin-mode="nudge" class="active">微调 · 不打断</button>
-              <button type="button" data-plugin-mode="interrupt">直接打断</button>
-            </div>
-          </div>
 
-          <form id="composer" class="composer">
-            <textarea id="prompt-input" rows="1" placeholder="给 Claude 发指令…" maxlength="20000"></textarea>
-            <button type="button" id="stop-btn" class="stop-btn" hidden aria-label="停止"><svg class="icon"><use href="#i-stop"/></svg></button>
-            <button type="submit" id="send-btn" class="send-btn" aria-label="发送"><svg class="icon"><use href="#i-send"/></svg></button>
-          </form>
-          <div class="composer-meta">
-            <span id="composer-status">逐项批准模式 · 输出实时同步</span>
-            <span class="composer-meta-actions">
-              <button type="button" class="text-btn" id="plugin-open-vscode-inline" hidden>VS Code</button>
-              <button type="button" class="text-btn" id="plugin-resume-inline" hidden>继续对话</button>
-              <button type="button" class="text-btn danger-text" id="plugin-close-inline" hidden>关闭会话</button>
-              <button type="button" class="text-btn" id="quick-interrupt">中断当前任务</button>
-            </span>
+            <div id="history-bar" class="permission-bar" hidden>
+              <svg class="icon"><use href="#i-history"/></svg>
+              <span>正在查看历史会话（只读）</span>
+              <button id="resume-history-btn" class="small-btn">继续对话</button>
+              <button id="fork-history-btn" class="small-btn">创建副本</button>
+            </div>
+
+            <div id="composer-status-row" class="composer-status-row" hidden>
+              <div id="thinking-indicator" class="thinking-indicator" hidden>
+                <span class="thinking-pulse" aria-hidden="true"></span>
+                <span id="thinking-indicator-label">Claude 正在思考…</span>
+                <span id="thinking-indicator-token"></span>
+              </div>
+              <div id="plugin-send-mode" class="plugin-mode-actions" hidden>
+                <button type="button" data-plugin-mode="nudge" class="active">微调 · 不打断</button>
+                <button type="button" data-plugin-mode="interrupt">直接打断</button>
+              </div>
+            </div>
+
+            <form id="composer" class="composer">
+              <textarea id="prompt-input" rows="1" placeholder="给 Claude 发指令…" maxlength="20000"></textarea>
+              <button type="button" id="stop-btn" class="stop-btn" hidden aria-label="停止"><svg class="icon"><use href="#i-stop"/></svg></button>
+              <button type="submit" id="send-btn" class="send-btn" aria-label="发送"><svg class="icon"><use href="#i-send"/></svg></button>
+            </form>
+            <div class="composer-meta">
+              <span id="composer-status">逐项批准模式 · 输出实时同步</span>
+              <span class="composer-meta-actions">
+                <button type="button" class="text-btn" id="plugin-open-vscode-inline" hidden>VS Code</button>
+                <button type="button" class="text-btn" id="plugin-resume-inline" hidden>继续对话</button>
+                <button type="button" class="text-btn danger-text" id="plugin-close-inline" hidden>关闭会话</button>
+                <button type="button" class="text-btn" id="quick-interrupt">中断当前任务</button>
+              </span>
+            </div>
           </div>
         </div>
       </section>
@@ -620,6 +622,6 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="/vendor/nosleep.js"></script>
-  <script src="/app.js?v=20261107-32" type="module"></script>
+  <script src="/app.js?v=20261107-33" type="module"></script>
 </body>
 </html>

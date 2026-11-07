@@ -423,11 +423,27 @@ async function fetchState() {
 
 document.addEventListener('DOMContentLoaded', init);
 
+function initComposerDock() {
+  const dock = $('#composer-dock');
+  if (!dock) return;
+  const update = () => {
+    const height = Math.ceil(dock.getBoundingClientRect().height);
+    if (height > 0) document.documentElement.style.setProperty('--dock-h', `${height}px`);
+  };
+  if (typeof ResizeObserver === 'function') {
+    new ResizeObserver(update).observe(dock);
+  }
+  window.addEventListener('resize', update);
+  window.visualViewport?.addEventListener('resize', update);
+  update();
+}
+
 async function init() {
   bindEvents();
   initWakeLock();
   initResumeRecovery();
   startSseWatchdog();
+  initComposerDock();
   registerServiceWorker();
   setupInstallPrompt();
   try {
