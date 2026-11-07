@@ -353,9 +353,11 @@ button.full, .full { width: 100%; }
   margin-left: auto; flex: 0 0 auto;
 }
 .plugin-mode-actions button {
-  border: 1px solid var(--line); background: rgba(17, 26, 43, 0.34);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(17, 26, 43, 0.56);
   color: var(--muted); border-radius: 999px; padding: 6px 10px; font-size: 10px;
   white-space: nowrap;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 .plugin-mode-actions button.active { color: var(--accent); border-color: rgba(110, 231, 216, 0.4); background: rgba(110, 231, 216, 0.08); }
 .plugin-mode-actions button[data-plugin-mode="interrupt"].active { color: var(--danger); border-color: rgba(255, 107, 122, 0.4); background: rgba(255, 107, 122, 0.08); }
@@ -515,19 +517,20 @@ button.full, .full { width: 100%; }
 }
 .composer textarea {
   flex: 1 1 auto; width: auto;
-  background: rgba(17, 26, 43, 0.52);
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(17, 26, 43, 0.68);
+  border: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 16px;
-  box-shadow: none; padding: 10px 13px; max-height: 132px;
-  font-size: 14px; line-height: 1.45; min-height: 44px; min-width: 0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  padding: 11px 13px; max-height: 132px;
+  font-size: 14px; line-height: 1.4; min-height: 44px; min-width: 0;
 }
 .composer textarea:focus {
-  border-color: rgba(110, 231, 216, 0.4);
-  background: rgba(17, 26, 43, 0.62);
+  border-color: rgba(110, 231, 216, 0.45);
+  background: rgba(17, 26, 43, 0.76);
   box-shadow: none;
 }
 .send-btn, .stop-btn {
-  width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center;
+  width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center;
   border: 0; flex: 0 0 auto;
 }
 .send-btn { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #041312; }
