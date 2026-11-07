@@ -1,0 +1,96 @@
+{
+  "name": "remotedeck",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "RemoteDeck - 手机远程控制电脑上的 Claude Code、VS Code 与电源",
+  "license": "MIT",
+  "author": "RemoteDeck",
+  "main": "desktop/main.cjs",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "desktop": "node scripts/run-desktop.mjs",
+    "desktop:hidden": "node scripts/run-desktop.mjs --hidden",
+    "prepare:desktop-runtime": "node scripts/prepare-node-runtime.mjs",
+    "prebuild:desktop": "npm run prepare:desktop-runtime",
+    "postbuild:desktop": "node scripts/copy-installer.mjs",
+    "prebuild:desktop:installer": "npm run prepare:desktop-runtime",
+    "postbuild:desktop:installer": "node scripts/copy-installer.mjs",
+    "prebuild:desktop:portable": "npm run prepare:desktop-runtime",
+    "build:desktop": "electron-builder --win nsis",
+    "build:desktop:installer": "electron-builder --win nsis",
+    "build:desktop:portable": "electron-builder --win portable",
+    "icon:generate": "python scripts/make-icon.py",
+    "test": "node --test tests/*.test.js",
+    "check": "node --check server/index.js && node --check public/app.js && node --check desktop/main.cjs",
+    "bridge:install": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-vscode-bridge.ps1",
+    "autostart:on": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-autostart.ps1",
+    "autostart:off": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/uninstall-autostart.ps1"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.319",
+    "qrcode": "1.5.4"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "electron": "^22.3.27",
+    "electron-builder": "^26.18.0"
+  },
+  "build": {
+    "appId": "com.remotedeck.desktop",
+    "productName": "RemoteDeck",
+    "asar": false,
+    "npmRebuild": false,
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "files": [
+      "desktop/**/*",
+      "!desktop/runtime/**",
+      "server/**/*",
+      "public/**/*",
+      "assets/**/*",
+      "scripts/vscode-windows.ps1",
+      "scripts/install-vscode-bridge.ps1",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "desktop/runtime/node.exe",
+        "to": "node/node.exe"
+      }
+    ],
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "portable": {
+      "artifactName": "RemoteDeck-${version}-portable.exe",
+      "requestExecutionLevel": "user"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "RemoteDeck",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "artifactName": "RemoteDeck-${version}-setup.exe"
+    }
+  }
+}

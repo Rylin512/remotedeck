@@ -1,0 +1,596 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#070b14">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="RemoteDeck">
+  <meta name="description" content="在手机上控制电脑上的 Claude Code、VS Code 与电源。">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icons/icon-192.png" sizes="192x192">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="/styles.css?v=20261107-20">
+  <title>RemoteDeck</title>
+</head>
+<body>
+  <svg class="svg-sprite" aria-hidden="true">
+    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.3 9.1 9.1 0 0 1-3.7-.8L3 21l1.7-5a8 8 0 0 1-.7-3.3A8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5Z"/><path d="M8.5 10h7M8.5 13.5h4.5"/></symbol>
+    <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 3v9"/><path d="M6.3 6.3a8 8 0 1 0 11.4 0"/></symbol>
+    <symbol id="i-code" viewBox="0 0 24 24"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4v-.2a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="m4 4 17 8-17 8 3-8-3-8Z"/><path d="M7 12h14"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></symbol>
+    <symbol id="i-terminal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M13 15h4"/></symbol>
+    <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 3.8 5.6 3.8 9S14.5 18.5 12 21c-2.5-2.5-3.8-5.6-3.8-9S9.5 5.5 12 3Z"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 20 6v6c0 5-3.4 8.3-8 9-4.6-.7-8-4-8-9V6Z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-qr" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v3M14 20h3M20 20h1"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+    <symbol id="i-tool" viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.5-2.5Z"/></symbol>
+    <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></symbol>
+    <symbol id="i-memory" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 10v4M11 10v4M15 10v4M19 10v4"/></symbol>
+    <symbol id="i-disk" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M7 4v6h10V4M7 20v-4h10v4"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 6.7"/><path d="M20 4v7h-7"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+    <symbol id="i-restart" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v6h-6"/></symbol>
+    <symbol id="i-shutdown" viewBox="0 0 24 24"><path d="M12 3v9"/><path d="M6.3 6.3a8 8 0 1 0 11.4 0"/></symbol>
+    <symbol id="i-sleep" viewBox="0 0 24 24"><path d="M20 15.5A8 8 0 0 1 8.5 4 8 8 0 1 0 20 15.5Z"/></symbol>
+    <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M3 9a14 14 0 0 1 18 0M6 12.5a9.5 9.5 0 0 1 12 0M9 16a5 5 0 0 1 6 0"/><circle cx="12" cy="19" r="1"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 22 21H2Z"/><path d="M12 9v5M12 18h.01"/></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l2 2M14 9l2 2"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></symbol>
+    <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="m3 3 18 18"/><path d="M10.6 6.2A10.9 10.9 0 0 1 12 6c6.5 0 10 6 10 6a17 17 0 0 1-3 3.7M6.6 6.6C3.6 8.5 2 12 2 12s3.5 6 10 6a10.8 10.8 0 0 0 4.2-.8"/></symbol>
+    <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v6h6M12 7v5l3 2"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8Z"/><path d="m19 16 .8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8Z"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7Z"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></symbol>
+  </svg>
+
+  <div id="auth" class="auth-screen" hidden>
+    <div class="auth-bg"></div>
+    <div class="auth-inner">
+      <div class="brand-lockup">
+        <div class="brand-mark">&gt;_</div>
+        <div>
+          <div class="brand-name">RemoteDeck</div>
+          <div class="brand-sub">你的电脑，随身携带</div>
+        </div>
+      </div>
+
+      <section id="login-card" class="auth-card">
+        <div class="eyebrow">SECURE SIGN IN</div>
+        <h1>回到你的工作台</h1>
+        <p class="muted">输入电脑上设置的访问密码。所有流量都经过加密或私有网络。</p>
+        <form id="login-form" autocomplete="on">
+          <label class="field">
+            <span>访问密码</span>
+            <span class="input-wrap">
+              <input id="login-password" name="password" type="password" autocomplete="current-password" required maxlength="200" placeholder="••••••••••">
+              <button type="button" class="icon-btn reveal" data-target="login-password" aria-label="显示密码"><svg class="icon"><use href="#i-eye"/></svg></button>
+            </span>
+          </label>
+          <div id="login-error" class="form-error" role="alert"></div>
+          <button class="primary big" type="submit" id="login-submit">解锁</button>
+        </form>
+        <div class="auth-foot">密码只保存在这台电脑上 · <span id="login-version">v0.1.0</span></div>
+      </section>
+
+      <section id="setup-card" class="auth-card" hidden>
+        <div class="eyebrow">FIRST RUN · LOCAL ONLY</div>
+        <h1>先设置一把钥匙</h1>
+        <p class="muted">首次初始化只能在电脑本机完成。请设置一个只有你知道的强密码。</p>
+        <form id="setup-form" autocomplete="off">
+          <label class="field">
+            <span>新密码（至少 10 位）</span>
+            <span class="input-wrap">
+              <input id="setup-password" type="password" autocomplete="new-password" required maxlength="200" placeholder="混合字母、数字或符号">
+              <button type="button" class="icon-btn reveal" data-target="setup-password" aria-label="显示密码"><svg class="icon"><use href="#i-eye"/></svg></button>
+            </span>
+          </label>
+          <div class="strength"><span id="strength-bar"></span></div>
+          <label class="field">
+            <span>再输入一次</span>
+            <input id="setup-confirm" type="password" autocomplete="new-password" required maxlength="200" placeholder="再次输入密码">
+          </label>
+          <div id="setup-error" class="form-error" role="alert"></div>
+          <button class="primary big" type="submit" id="setup-submit">创建并进入</button>
+        </form>
+        <div class="auth-foot">初始化完成后，可在手机上通过 Cloudflare 或 Tailscale 连接。</div>
+      </section>
+    </div>
+  </div>
+
+  <div id="shell" class="shell" hidden>
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="status-dot" id="conn-dot"></div>
+        <div class="topbar-title">
+          <strong id="topbar-host">RemoteDeck</strong>
+          <span id="conn-label">连接中…</span>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <button class="pill" id="remote-pill" hidden><svg class="icon"><use href="#i-globe"/></svg><span>远程</span></button>
+        <button class="icon-btn" id="refresh-btn" aria-label="刷新"><svg class="icon"><use href="#i-refresh"/></svg></button>
+      </div>
+    </header>
+
+    <main class="views">
+      <section class="view" data-view="chat" id="view-chat">
+        <div id="chat-empty">
+          <div class="hero">
+            <div class="eyebrow"><span class="live-dot"></span> REMOTE CLAUDE</div>
+            <h1>把电脑上的 Claude<br><span class="grad">装进口袋</span></h1>
+            <p>在手机上发起 Claude Code 会话，实时查看输出，逐条批准工具调用。代码和命令始终在你自己的电脑上运行。</p>
+          </div>
+
+          <div id="plugin-live-section" class="card plugin-live-card" hidden>
+            <div class="card-head">
+              <div>
+                <div class="eyebrow"><span class="live-dot"></span> VS CODE PLUGIN · LIVE</div>
+                <h2>Claude 插件会话（实时）</h2>
+                <p class="muted small">读取 Claude Code 扩展的本地会话文件，实时显示它正在做什么。默认只读；进程仍在运行的会话可以直接发送消息。</p>
+              </div>
+              <svg class="icon accent"><use href="#i-terminal"/></svg>
+            </div>
+            <div id="plugin-live-list" class="plugin-live-list"></div>
+          </div>
+
+          <div class="card start-card">
+            <div class="card-head">
+              <div>
+                <h2>新会话</h2>
+                <p class="muted small">选择一个项目目录，Claude 会在其中工作。</p>
+              </div>
+              <svg class="icon accent"><use href="#i-spark"/></svg>
+            </div>
+            <label class="field compact">
+              <span>工作目录</span>
+              <div class="row">
+                <select id="workspace-select"></select>
+                <button type="button" class="ghost" id="custom-workspace-btn">自定义</button>
+              </div>
+            </label>
+            <div id="custom-workspace-row" class="field compact" hidden>
+              <label class="field compact">
+                <span>绝对路径</span>
+                <input id="custom-workspace" type="text" placeholder="C:\Users\你\Projects\demo" spellcheck="false">
+              </label>
+            </div>
+            <div class="two-col">
+              <label class="field compact">
+                <span>权限模式</span>
+                <select id="permission-mode">
+                  <option value="default">逐项批准（推荐）</option>
+                  <option value="acceptEdits">自动批准编辑</option>
+                  <option value="auto">自动模式</option>
+                  <option value="plan">仅规划</option>
+                  <option value="dontAsk">不询问（拒绝未授权）</option>
+                </select>
+              </label>
+              <label class="field compact">
+                <span>模型（留空用默认）</span>
+                <input id="model-input" type="text" placeholder="默认" spellcheck="false">
+              </label>
+            </div>
+            <button class="primary big full" id="start-session-btn"><svg class="icon"><use href="#i-play"/></svg>开始会话</button>
+            <p class="hint" id="start-hint">首次启动会加载 Claude Code，可能需要几秒。</p>
+          </div>
+
+          <div class="section-head">
+            <h2 id="history-heading">最近会话</h2>
+            <div class="section-actions">
+              <button class="text-btn" id="show-all-history-btn">显示全部记录</button>
+              <button class="text-btn" id="refresh-history-btn"><svg class="icon"><use href="#i-refresh"/></svg>刷新</button>
+            </div>
+          </div>
+          <div id="history-list" class="history-list"></div>
+        </div>
+
+        <div id="chat-active" class="chat-active" hidden>
+          <div class="chat-head">
+            <button class="icon-btn" id="back-to-sessions" aria-label="返回会话列表"><svg class="icon back"><use href="#i-chevron"/></svg></button>
+            <div class="chat-head-info">
+              <strong id="chat-title">会话</strong>
+              <span id="chat-sub">—</span>
+            </div>
+            <button class="icon-btn" id="chat-menu-btn" aria-label="会话操作"><svg class="icon"><use href="#i-more"/></svg></button>
+          </div>
+
+          <div id="messages" class="messages" role="log" aria-live="polite"></div>
+          <div id="thinking-indicator" class="thinking-indicator" hidden>
+            <span class="thinking-pulse" aria-hidden="true"></span>
+            <span id="thinking-indicator-label">Claude 正在思考…</span>
+            <span id="thinking-indicator-token"></span>
+          </div>
+          <button id="jump-bottom" class="jump-bottom" hidden>回到底部 <svg class="icon"><use href="#i-chevron"/></svg></button>
+
+          <div id="pending-permission-bar" class="permission-bar" hidden>
+            <svg class="icon"><use href="#i-shield"/></svg>
+            <span>Claude 正在等待你的批准</span>
+            <button id="review-permission-btn" class="small-btn">查看</button>
+          </div>
+
+          <div id="history-bar" class="permission-bar" hidden>
+            <svg class="icon"><use href="#i-history"/></svg>
+            <span>正在查看历史会话（只读）</span>
+            <button id="resume-history-btn" class="small-btn">继续对话</button>
+            <button id="fork-history-btn" class="small-btn">创建副本</button>
+          </div>
+
+          <div id="plugin-send-mode" class="plugin-send-mode" hidden>
+            <span>发送方式</span>
+            <button type="button" data-plugin-mode="nudge" class="active">微调 · 不打断</button>
+            <button type="button" data-plugin-mode="interrupt">直接打断</button>
+          </div>
+
+          <form id="composer" class="composer">
+            <textarea id="prompt-input" rows="1" placeholder="给 Claude 发指令…" maxlength="20000"></textarea>
+            <button type="button" id="stop-btn" class="stop-btn" hidden aria-label="停止"><svg class="icon"><use href="#i-stop"/></svg></button>
+            <button type="submit" id="send-btn" class="send-btn" aria-label="发送"><svg class="icon"><use href="#i-send"/></svg></button>
+          </form>
+          <div class="composer-meta">
+            <span id="composer-status">逐项批准模式 · 输出实时同步</span>
+            <span class="composer-meta-actions">
+              <button type="button" class="text-btn" id="plugin-open-vscode-inline" hidden>VS Code</button>
+              <button type="button" class="text-btn" id="plugin-resume-inline" hidden>继续对话</button>
+              <button type="button" class="text-btn danger-text" id="plugin-close-inline" hidden>关闭会话</button>
+              <button type="button" class="text-btn" id="quick-interrupt">中断当前任务</button>
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" data-view="power" id="view-power" hidden>
+        <div class="view-head">
+          <div>
+            <div class="eyebrow">THIS MACHINE</div>
+            <h1>电脑</h1>
+          </div>
+          <div class="host-chip"><span class="status-dot on"></span><span id="power-host">—</span></div>
+        </div>
+
+        <div class="stats-grid" id="system-stats"></div>
+
+        <div class="card">
+          <div class="card-head">
+            <div><h2>电源控制</h2><p class="muted small">操作前需要输入确认词。关机/重启默认留 10 秒缓冲。</p></div>
+            <svg class="icon accent"><use href="#i-power"/></svg>
+          </div>
+          <div class="power-grid">
+            <button class="power-action danger" data-power="shutdown"><svg class="icon"><use href="#i-shutdown"/></svg><span>关机</span></button>
+            <button class="power-action" data-power="restart"><svg class="icon"><use href="#i-restart"/></svg><span>重启</span></button>
+            <button class="power-action" data-power="lock"><svg class="icon"><use href="#i-lock"/></svg><span>锁定</span></button>
+            <button class="power-action" data-power="sleep"><svg class="icon"><use href="#i-sleep"/></svg><span>睡眠</span></button>
+            <button class="power-action subtle" data-power="cancel"><svg class="icon"><use href="#i-x"/></svg><span>取消关机</span></button>
+          </div>
+          <div class="switch-row">
+            <div><strong>开机自启动</strong><span class="muted small">登录 Windows 后在后台启动 RemoteDeck</span></div>
+            <label class="switch"><input type="checkbox" id="autostart-toggle"><span></span></label>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>最近操作</h2><span class="muted small">仅保存在本机</span></div>
+          <div id="audit-list" class="audit-list"></div>
+        </div>
+      </section>
+
+      <section class="view" data-view="vscode" id="view-vscode" hidden>
+        <div class="view-head">
+          <div>
+            <div class="eyebrow">EDITOR BRIDGE</div>
+            <h1>VS Code</h1>
+          </div>
+          <div class="host-chip" id="vscode-ide-chip"><span class="status-dot"></span><span>检测中</span></div>
+        </div>
+
+        <div class="card bridge-card" id="bridge-card">
+          <div class="bridge-icon"><svg class="icon"><use href="#i-code"/></svg></div>
+          <div class="bridge-text">
+            <h2>Claude Code 面板桥接</h2>
+            <p class="muted small" id="bridge-status-text">正在检测桥接扩展…</p>
+          </div>
+          <span class="badge" id="bridge-badge">—</span>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h2>正在运行的 VS Code 窗口</h2>
+              <p class="muted small">从手机选择窗口并关闭；有未保存内容时，VS Code 会自己弹出保存确认。</p>
+            </div>
+            <button class="text-btn" id="refresh-vscode-windows"><svg class="icon"><use href="#i-refresh"/></svg>刷新</button>
+          </div>
+          <div id="vscode-windows-list" class="vscode-windows-list">
+            <div class="empty-list">正在读取窗口…</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>打开 Claude</h2>
+          <p class="muted small">在 VS Code 中打开官方 Claude Code 面板，或在集成终端中启动 Claude。</p>
+          <div class="button-row">
+            <button class="secondary" id="open-claude-panel-btn"><svg class="icon"><use href="#i-panel"/></svg>打开面板</button>
+            <button class="secondary" id="open-claude-terminal-btn"><svg class="icon"><use href="#i-terminal"/></svg>在终端打开</button>
+          </div>
+          <div class="notice warn" id="bridge-warning" hidden>
+            <svg class="icon"><use href="#i-alert"/></svg>
+            <span>未安装桥接扩展。运行 <code>scripts\install-vscode-bridge.ps1</code> 后重启 VS Code。</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>发送到 VS Code 里的 Claude</h2>
+          <p class="muted small">通过桥接扩展在 VS Code 终端中注入指令。受终端 UI 限制，建议短指令；长任务请使用“会话”。</p>
+          <form id="vscode-prompt-form">
+            <textarea id="vscode-prompt" rows="3" maxlength="1500" placeholder="例如：解释当前文件并给出修改建议"></textarea>
+            <button class="primary full" type="submit" id="vscode-send-btn"><svg class="icon"><use href="#i-send"/></svg>发送到 VS Code</button>
+          </form>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>最近项目</h2><span class="muted small">点击在 VS Code 中打开</span></div>
+          <div id="workspaces-list" class="workspace-list"></div>
+        </div>
+
+        <div class="card">
+          <h2>官方 Remote Control</h2>
+          <p class="muted small">Claude Code 自带官方手机控制。启用后，扩展里的会话可以自动连接到 claude.ai/code 和 Claude 手机 App。</p>
+          <div class="switch-row">
+            <div><strong>所有会话自动开启 Remote Control</strong><span class="muted small">写入 ~/.claude/settings.json</span></div>
+            <label class="switch"><input type="checkbox" id="official-rc-toggle"><span></span></label>
+          </div>
+          <a class="secondary full link-btn" href="https://claude.ai/code" target="_blank" rel="noopener noreferrer">打开 claude.ai/code <svg class="icon"><use href="#i-external"/></svg></a>
+        </div>
+      </section>
+
+      <section class="view" data-view="settings" id="view-settings" hidden>
+        <div class="view-head">
+          <div>
+            <div class="eyebrow">CONTROL ROOM</div>
+            <h1>设置</h1>
+          </div>
+          <span class="version-chip" id="settings-version">v0.1.0</span>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div><h2>远程访问</h2><p class="muted small">让手机在任意互联网环境连接这台电脑。</p></div>
+            <svg class="icon accent"><use href="#i-globe"/></svg>
+          </div>
+          <label class="field compact">
+            <span>连接方式</span>
+            <select id="tunnel-mode">
+              <option value="cloudflare">Cloudflare 快速隧道（免安装，地址会变）</option>
+              <option value="tailscale">Tailscale（推荐，稳定私有地址）</option>
+              <option value="off">关闭</option>
+            </select>
+          </label>
+          <div class="button-row">
+            <button class="primary" id="tunnel-start-btn"><svg class="icon"><use href="#i-link"/></svg>启动隧道</button>
+            <button class="secondary" id="tunnel-stop-btn">停止</button>
+          </div>
+          <div class="switch-row">
+            <div><strong>启动 RemoteDeck 时自动恢复隧道</strong><span class="muted small">适合配合开机自启动，让手机随时能连上</span></div>
+            <label class="switch"><input type="checkbox" id="tunnel-autostart-toggle"><span></span></label>
+          </div>
+          <div id="tunnel-status" class="tunnel-status"></div>
+          <div id="tunnel-qr-wrap" class="qr-wrap" hidden>
+            <img id="tunnel-qr" alt="远程访问地址二维码">
+            <div class="qr-copy">
+              <span class="muted small">手机扫码打开</span>
+              <code id="tunnel-url">—</code>
+              <button class="text-btn" id="copy-tunnel-btn"><svg class="icon"><use href="#i-copy"/></svg>复制地址</button>
+            </div>
+          </div>
+          <div class="notice warn">
+            <svg class="icon"><use href="#i-shield"/></svg>
+            <span>Cloudflare 快速隧道会生成一个公网 HTTPS 地址。地址随机且会变化，但登录仍受密码、会话 Cookie、CSRF 和限流保护。请勿使用弱密码。</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>Claude</h2><svg class="icon accent"><use href="#i-spark"/></svg></div>
+          <label class="field compact">
+            <span>默认权限模式</span>
+            <select id="default-permission-mode">
+              <option value="default">逐项批准</option>
+              <option value="acceptEdits">自动批准编辑</option>
+              <option value="auto">自动模式</option>
+              <option value="plan">仅规划</option>
+              <option value="dontAsk">不询问</option>
+            </select>
+          </label>
+          <label class="field compact">
+            <span>默认模型（留空跟随 Claude 设置）</span>
+            <input id="default-model" type="text" placeholder="例如 deepseek-flash" spellcheck="false">
+          </label>
+          <label class="field compact">
+            <span>允许 Claude 访问的根目录（每行一个）</span>
+            <textarea id="allowed-roots" rows="2" spellcheck="false" placeholder="C:\Users\你\Projects"></textarea>
+          </label>
+          <button class="secondary full" id="save-roots-btn">保存根目录</button>
+          <div class="switch-row">
+            <div><strong>允许“完全跳过权限”</strong><span class="muted small danger-text">高风险：Claude 可执行任意命令而不再询问</span></div>
+            <label class="switch"><input type="checkbox" id="allow-bypass-toggle"><span></span></label>
+          </div>
+          <div class="switch-row">
+            <div><strong>官方 Remote Control 自动开启</strong><span class="muted small">写入 Claude 用户设置</span></div>
+            <label class="switch"><input type="checkbox" id="official-rc-toggle-settings"><span></span></label>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>安全</h2><svg class="icon accent"><use href="#i-shield"/></svg></div>
+          <div class="security-row"><span>已登录设备</span><strong id="session-count">—</strong></div>
+          <div class="security-row"><span>服务器版本</span><strong id="security-version">—</strong></div>
+          <div class="button-row">
+            <button class="secondary" id="change-password-btn"><svg class="icon"><use href="#i-key"/></svg>修改密码</button>
+            <button class="secondary danger-outline" id="logout-btn">退出登录</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>系统</h2><svg class="icon"><use href="#i-cpu"/></svg></div>
+          <div class="security-row"><span>主机名</span><strong id="settings-host">—</strong></div>
+          <div class="security-row"><span>监听端口</span><strong id="settings-port">—</strong></div>
+          <div class="security-row"><span>开机自启动</span><strong id="settings-autostart">—</strong></div>
+          <div class="security-row"><span>Claude Code SDK</span><strong id="settings-sdk">—</strong></div>
+          <div class="button-row">
+            <button class="secondary" id="install-autostart-btn">启用自启动</button>
+            <button class="secondary" id="remove-autostart-btn">关闭自启动</button>
+          </div>
+        </div>
+
+        <div class="card about-card">
+          <div class="brand-lockup small"><div class="brand-mark">&gt;_</div><div><div class="brand-name">RemoteDeck</div><div class="brand-sub">v0.1.0 · MIT</div></div></div>
+          <p class="muted small">Claude Code 与 VS Code 是 Anthropic / Microsoft 的产品。本项目是独立的自托管控制面板，不隶属于任何一方。请仅在你拥有或获授权的电脑上使用。</p>
+        </div>
+      </section>
+    </main>
+
+    <nav class="tabbar" aria-label="主导航">
+      <button class="tab active" data-tab="chat"><svg class="icon"><use href="#i-chat"/></svg><span>会话</span></button>
+      <button class="tab" data-tab="power"><svg class="icon"><use href="#i-power"/></svg><span>电脑</span></button>
+      <button class="tab" data-tab="vscode"><svg class="icon"><use href="#i-code"/></svg><span>VS Code</span></button>
+      <button class="tab" data-tab="settings"><svg class="icon"><use href="#i-settings"/></svg><span>设置</span></button>
+    </nav>
+  </div>
+
+  <dialog id="permission-dialog" class="sheet">
+    <div class="sheet-grip"></div>
+    <div class="sheet-head">
+      <div><div class="eyebrow">PERMISSION REQUEST</div><h2>Claude 请求执行操作</h2></div>
+      <button class="icon-btn" data-close-dialog="permission-dialog" aria-label="关闭"><svg class="icon"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="sheet-body">
+      <div class="permission-tool"><svg class="icon"><use href="#i-tool"/></svg><strong id="permission-tool-name">Tool</strong></div>
+      <p id="permission-title" class="permission-title"></p>
+      <p id="permission-desc" class="muted small"></p>
+      <details class="tool-input-details" open>
+        <summary>查看参数</summary>
+        <pre id="permission-input"></pre>
+      </details>
+    </div>
+    <div class="sheet-actions stack">
+      <button class="primary" id="permission-allow">允许一次</button>
+      <button class="secondary" id="permission-always">本会话总是允许</button>
+      <button class="ghost danger-text" id="permission-deny">拒绝</button>
+    </div>
+  </dialog>
+
+  <dialog id="power-dialog" class="sheet">
+    <div class="sheet-grip"></div>
+    <div class="sheet-head">
+      <div><div class="eyebrow">CONFIRM ACTION</div><h2 id="power-dialog-title">确认操作</h2></div>
+      <button class="icon-btn" data-close-dialog="power-dialog" aria-label="关闭"><svg class="icon"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="sheet-body">
+      <p class="muted" id="power-dialog-desc"></p>
+      <label class="field compact">
+        <span>输入 <strong id="power-confirm-word">关机</strong> 以确认</span>
+        <input id="power-confirm-input" type="text" autocomplete="off" spellcheck="false">
+      </label>
+      <label class="field compact" id="power-delay-row">
+        <span>延迟</span>
+        <select id="power-delay">
+          <option value="10">10 秒（可取消）</option>
+          <option value="30">30 秒</option>
+          <option value="60">60 秒</option>
+          <option value="0">立即</option>
+        </select>
+      </label>
+      <div id="power-error" class="form-error" role="alert"></div>
+    </div>
+    <div class="sheet-actions stack">
+      <button class="primary danger" id="power-confirm-btn">确认执行</button>
+      <button class="ghost" data-close-dialog="power-dialog">取消</button>
+    </div>
+  </dialog>
+
+  <dialog id="password-dialog" class="sheet">
+    <div class="sheet-grip"></div>
+    <div class="sheet-head">
+      <div><div class="eyebrow">SECURITY</div><h2>修改访问密码</h2></div>
+      <button class="icon-btn" data-close-dialog="password-dialog" aria-label="关闭"><svg class="icon"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="sheet-body">
+      <label class="field compact"><span>当前密码</span><input id="password-current" type="password" autocomplete="current-password"></label>
+      <label class="field compact"><span>新密码（至少 10 位）</span><input id="password-new" type="password" autocomplete="new-password"></label>
+      <label class="field compact"><span>确认新密码</span><input id="password-confirm" type="password" autocomplete="new-password"></label>
+      <div id="password-error" class="form-error" role="alert"></div>
+      <p class="hint">修改后所有设备（包括当前手机）都会退出登录，需要用新密码重新登录。</p>
+    </div>
+    <div class="sheet-actions stack">
+      <button class="primary" id="password-save-btn">保存并重新登录</button>
+      <button class="ghost" data-close-dialog="password-dialog">取消</button>
+    </div>
+  </dialog>
+
+  <dialog id="session-menu-dialog" class="sheet">
+    <div class="sheet-grip"></div>
+    <div class="sheet-head"><div><h2>会话操作</h2></div><button class="icon-btn" data-close-dialog="session-menu-dialog" aria-label="关闭"><svg class="icon"><use href="#i-x"/></svg></button></div>
+    <div class="sheet-actions stack">
+      <button class="secondary" id="menu-interrupt">中断当前任务</button>
+      <button class="secondary" id="menu-refresh">同步输出</button>
+      <button class="secondary danger-outline" id="menu-stop">停止并关闭会话</button>
+      <button class="ghost" data-close-dialog="session-menu-dialog">取消</button>
+    </div>
+  </dialog>
+
+  <dialog id="plugin-close-dialog" class="sheet">
+    <div class="sheet-grip"></div>
+    <div class="sheet-head">
+      <div><div class="eyebrow">STOP SESSION</div><h2>关闭插件会话</h2></div>
+      <button class="icon-btn" data-close-dialog="plugin-close-dialog" aria-label="关闭"><svg class="icon"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="sheet-body">
+      <p class="muted">这会终止该会话对应的 Claude Code 进程，VS Code 插件里的当前对话会结束。请先把要保留的内容记下来。</p>
+      <label class="field compact">
+        <span>输入 <strong>关闭</strong> 以确认</span>
+        <input id="plugin-close-confirm-input" type="text" autocomplete="off" spellcheck="false" placeholder="关闭">
+      </label>
+      <div id="plugin-close-error" class="form-error" role="alert"></div>
+    </div>
+    <div class="sheet-actions stack">
+      <button class="primary danger" id="plugin-close-confirm-btn">确认关闭会话</button>
+      <button class="ghost" data-close-dialog="plugin-close-dialog">取消</button>
+    </div>
+  </dialog>
+
+  <dialog id="install-dialog" class="sheet">
+    <div class="sheet-grip"></div>
+    <div class="sheet-head"><div><div class="eyebrow">INSTALL</div><h2>把 RemoteDeck 放到桌面</h2></div><button class="icon-btn" data-close-dialog="install-dialog" aria-label="关闭"><svg class="icon"><use href="#i-x"/></svg></button></div>
+    <div class="sheet-body">
+      <p class="muted">iPhone：Safari 分享菜单 → 添加到主屏幕。Android：浏览器菜单 → 安装应用 / 添加到主屏幕。</p>
+      <p class="hint">通过 HTTPS 地址打开时才能安装；Cloudflare 或 Tailscale 都满足。</p>
+    </div>
+    <div class="sheet-actions"><button class="primary full" data-close-dialog="install-dialog">知道了</button></div>
+  </dialog>
+
+  <div id="launch-overlay" class="launch-overlay" hidden role="status" aria-live="polite">
+    <div class="launch-card">
+      <span class="launch-spinner" aria-hidden="true"></span>
+      <strong id="launch-title">正在启动 VS Code…</strong>
+      <p id="launch-detail">正在检查窗口并恢复会话，请稍候</p>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="/app.js?v=20261107-20" type="module"></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+node_modules/
+.npm-cache/
+dist/
+desktop/runtime/
+data/
+*.log
+.DS_Store
+Thumbs.db
+start-hidden.vbs
+.test-data/
+.test-*/
+.tmp-*/
+.vscode-test-ext/
+shots/

@@ -1,0 +1,29 @@
+{
+  "name": "bridge",
+  "displayName": "RemoteDeck Bridge",
+  "description": "从 RemoteDeck 手机控制台打开 Claude Code 面板或向 VS Code 终端发送指令。",
+  "publisher": "remotedeck",
+  "version": "0.1.1",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": ["Other"],
+  "remotedeckBridge": {
+    "capabilities": ["openSession", "prompt"]
+  },
+  "activationEvents": [
+    "onUri",
+    "onStartupFinished"
+  ],
+  "main": "./extension.js",
+  "extensionKind": ["ui", "workspace"],
+  "contributes": {
+    "commands": [
+      {
+        "command": "remotedeck.openClaude",
+        "title": "RemoteDeck: 打开 Claude Code"
+      }
+    ]
+  },
+  "license": "MIT"
+}
