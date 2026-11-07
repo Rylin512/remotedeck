@@ -30,6 +30,12 @@ const S = {
   pluginLiveFrame: 0,
   sse: null,
   sseRetry: null,
+  lastSseAt: 0,
+  sseWatchdog: null,
+  resyncTimer: null,
+  resyncing: false,
+  deltaBuffers: new Map(),
+  deltaFrame: 0,
   connected: false,
   rendered: new Map(),
   toolEls: new Map(),
@@ -224,10 +230,13 @@ function updateThinkingIndicator() {
   let label = 'Claude 正在思考…';
   if (pendingTools > 0 || S.currentActivity === 'tool') label = 'Claude 正在执行工具…';
   else if (S.currentActivity === 'writing') label = 'Claude 正在输出…';
-  $('#thinking-indicator-label').textContent = label;
-  $('#thinking-indicator-token').textContent = S.thinkingTokens && S.currentActivity === 'thinking'
+  const tokenText = S.thinkingTokens && S.currentActivity === 'thinking'
     ? `${S.thinkingEstimated ? '约 ' : ''}${formatTokenCount(S.thinkingTokens)} tokens`
     : '';
+  const labelEl = $('#thinking-indicator-label');
+  const tokenEl = $('#thinking-indicator-token');
+  if (labelEl.textContent !== label) labelEl.textContent = label;
+  if (tokenEl.textContent !== tokenText) tokenEl.textContent = tokenText;
   box.hidden = false;
   updateComposerStatusRow();
 }
@@ -295,7 +304,7 @@ async function requestWakeLock(showError = false) {
 async function setWakeLock(enabled) {
   S.wakeLockEnabled = Boolean(enabled);
   if (enabled) localStorage.setItem('rd_wake_lock', '1');
-  else localStorage.removeItem('rd_wake_lock');
+  else localStorage.setItem('rd_wake_lock', '0');
   if (!enabled) {
     try { S.noSleep?.disable(); } catch {}
     try { await S.wakeLock?.release(); } catch {}
@@ -309,11 +318,12 @@ async function setWakeLock(enabled) {
 }
 
 function initWakeLock() {
-  S.wakeLockEnabled = localStorage.getItem('rd_wake_lock') === '1';
+  S.wakeLockEnabled = localStorage.getItem('rd_wake_lock') !== '0';
   const toggle = $('#wake-lock-toggle');
   if (!toggle) return;
   toggle.checked = S.wakeLockEnabled;
   if (typeof window.NoSleep !== 'function' && !('wakeLock' in navigator)) {
+    toggle.checked = false;
     toggle.disabled = true;
     $('#wake-lock-hint').textContent = '当前浏览器不支持屏幕常亮。';
   }
@@ -405,6 +415,8 @@ document.addEventListener('DOMContentLoaded', init);
 async function init() {
   bindEvents();
   initWakeLock();
+  initResumeRecovery();
+  startSseWatchdog();
   registerServiceWorker();
   setupInstallPrompt();
   try {
@@ -515,8 +527,13 @@ function connectSSE() {
   closeSSE();
   const es = new EventSource('/api/events');
   S.sse = es;
+  S.lastSseAt = Date.now();
   setConnected(false, '连接中…');
-  es.onopen = () => setConnected(true, '已连接');
+  es.onopen = () => {
+    S.lastSseAt = Date.now();
+    setConnected(true, '已连接');
+    scheduleSessionResync(700);
+  };
   es.onerror = () => {
     setConnected(false, '正在重连…');
     if (es.readyState === EventSource.CLOSED) {
@@ -526,21 +543,29 @@ function connectSSE() {
       }, 3000);
     }
   };
-  es.addEventListener('hello', () => setConnected(true, '已连接'));
-  es.addEventListener('session', (evt) => onSessionEvent(parseEvent(evt)));
-  es.addEventListener('claude', (evt) => onClaudeEvent(parseEvent(evt)));
-  es.addEventListener('permission', (evt) => onPermissionEvent(parseEvent(evt)));
-  es.addEventListener('permission_resolved', (evt) => onPermissionResolved(parseEvent(evt)));
-  es.addEventListener('question', (evt) => onQuestionEvent(parseEvent(evt)));
-  es.addEventListener('question_resolved', (evt) => onQuestionResolved(parseEvent(evt)));
-  es.addEventListener('plugin_sessions', (evt) => onPluginSessions(parseEvent(evt)));
-  es.addEventListener('plugin_event', (evt) => onPluginEvent(parseEvent(evt)));
-  es.addEventListener('peer_reply', (evt) => onPeerReply(parseEvent(evt)));
-  es.addEventListener('plugin_closed', (evt) => onPluginClosed(parseEvent(evt)));
-  es.addEventListener('tunnel', (evt) => onTunnelEvent(parseEvent(evt)));
-  es.addEventListener('settings', () => refreshState({ silent: true }));
-  es.addEventListener('power', (evt) => onPowerEvent(parseEvent(evt)));
-  es.addEventListener('power_error', (evt) => toast(parseEvent(evt).message || '电源操作失败', true));
+  const mark = () => { S.lastSseAt = Date.now(); };
+  es.addEventListener('ping', () => {
+    mark();
+    setConnected(true, '已连接');
+  });
+  es.addEventListener('hello', () => {
+    mark();
+    setConnected(true, '已连接');
+  });
+  es.addEventListener('session', (evt) => { mark(); onSessionEvent(parseEvent(evt)); });
+  es.addEventListener('claude', (evt) => { mark(); onClaudeEvent(parseEvent(evt)); });
+  es.addEventListener('permission', (evt) => { mark(); onPermissionEvent(parseEvent(evt)); });
+  es.addEventListener('permission_resolved', (evt) => { mark(); onPermissionResolved(parseEvent(evt)); });
+  es.addEventListener('question', (evt) => { mark(); onQuestionEvent(parseEvent(evt)); });
+  es.addEventListener('question_resolved', (evt) => { mark(); onQuestionResolved(parseEvent(evt)); });
+  es.addEventListener('plugin_sessions', (evt) => { mark(); onPluginSessions(parseEvent(evt)); });
+  es.addEventListener('plugin_event', (evt) => { mark(); onPluginEvent(parseEvent(evt)); });
+  es.addEventListener('peer_reply', (evt) => { mark(); onPeerReply(parseEvent(evt)); });
+  es.addEventListener('plugin_closed', (evt) => { mark(); onPluginClosed(parseEvent(evt)); });
+  es.addEventListener('tunnel', (evt) => { mark(); onTunnelEvent(parseEvent(evt)); });
+  es.addEventListener('settings', () => { mark(); refreshState({ silent: true }); });
+  es.addEventListener('power', (evt) => { mark(); onPowerEvent(parseEvent(evt)); });
+  es.addEventListener('power_error', (evt) => { mark(); toast(parseEvent(evt).message || '电源操作失败', true); });
 }
 
 function closeSSE() {
@@ -549,6 +574,91 @@ function closeSSE() {
     S.sse = null;
   }
   clearTimeout(S.sseRetry);
+}
+
+function startSseWatchdog() {
+  if (S.sseWatchdog) return;
+  S.sseWatchdog = setInterval(() => {
+    if (!S.state?.authenticated || document.visibilityState !== 'visible') return;
+    const stale = Date.now() - (S.lastSseAt || 0) > 45_000;
+    const dead = !S.sse || S.sse.readyState === EventSource.CLOSED;
+    if (stale || dead) {
+      setConnected(false, '正在恢复连接…');
+      connectSSE();
+      scheduleSessionResync(900);
+    }
+  }, 15_000);
+}
+
+function resumeFromSleep() {
+  if (!S.state?.authenticated) return;
+  if (document.visibilityState !== 'visible') return;
+  const stale = Date.now() - (S.lastSseAt || 0) > 20_000;
+  const socketBad = !S.sse || S.sse.readyState !== EventSource.OPEN;
+  if (stale || socketBad) {
+    setConnected(false, '正在恢复连接…');
+    connectSSE();
+  }
+  scheduleSessionResync(650);
+}
+
+function initResumeRecovery() {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') resumeFromSleep();
+  });
+  window.addEventListener('pageshow', () => resumeFromSleep());
+  window.addEventListener('online', () => resumeFromSleep());
+  window.addEventListener('focus', () => {
+    if (Date.now() - (S.lastSseAt || 0) > 30_000) resumeFromSleep();
+  });
+}
+
+function scheduleSessionResync(delay = 650) {
+  clearTimeout(S.resyncTimer);
+  S.resyncTimer = setTimeout(() => {
+    resyncActiveSession().catch(() => {});
+  }, delay);
+}
+
+async function resyncActiveSession() {
+  if (!S.state?.authenticated || S.resyncing || S.historyView) return;
+  const pluginId = S.pluginSessionId;
+  const sessionId = S.activeSessionId;
+  if (!pluginId && !sessionId) {
+    await refreshState({ silent: true });
+    return;
+  }
+  const box = $('#messages');
+  const atBottom = !box || box.scrollHeight - box.scrollTop - box.clientHeight < 60;
+  const oldTop = box?.scrollTop || 0;
+  S.resyncing = true;
+  try {
+    if (pluginId) {
+      const data = await api(`/api/claude/plugin/sessions/${pluginId}`);
+      if (S.pluginSessionId !== pluginId) return;
+      if (data.session) S.pluginSession = { ...(S.pluginSession || {}), ...data.session };
+      renderMessages(data.messages || [], { scroll: atBottom });
+      if (!atBottom && box) box.scrollTop = oldTop;
+      updatePluginHeader();
+      updateComposerState();
+      updateThinkingIndicator();
+      await refreshState({ silent: true });
+      return;
+    }
+    const data = await api(`/api/claude/sessions/${sessionId}`);
+    if (S.activeSessionId !== sessionId) return;
+    if (!data.session) return;
+    S.session = data.session;
+    renderSessionHeader();
+    renderMessages(S.session.messages || [], { scroll: atBottom });
+    if (!atBottom && box) box.scrollTop = oldTop;
+    updateComposerState();
+    updateThinkingIndicator();
+    syncQuestionsFromSession(S.session);
+    await refreshState({ silent: true });
+  } finally {
+    S.resyncing = false;
+  }
 }
 
 function parseEvent(evt) {
@@ -1148,6 +1258,7 @@ function renderSettings() {
   $('#wake-lock-toggle').checked = S.wakeLockEnabled;
   const canKeepAwake = typeof window.NoSleep === 'function' || ('wakeLock' in navigator);
   if (!canKeepAwake) {
+    $('#wake-lock-toggle').checked = false;
     $('#wake-lock-toggle').disabled = true;
     $('#wake-lock-hint').textContent = '当前浏览器不支持屏幕常亮。';
   } else if (S.wakeLockEnabled && !S.wakeLockActive) {
@@ -1403,6 +1514,10 @@ function syncQuestionsFromSession(session) {
 }
 
 function renderMessages(messages, { scroll = true } = {}) {
+  flushDeltaBuffers();
+  S.deltaBuffers.clear();
+  if (S.deltaFrame) cancelAnimationFrame(S.deltaFrame);
+  S.deltaFrame = 0;
   const box = $('#messages');
   box.innerHTML = '';
   S.rendered.clear();
@@ -1414,6 +1529,35 @@ function renderMessages(messages, { scroll = true } = {}) {
   }
   for (const event of messages) applyClaudeEvent(event, { initial: true });
   if (scroll) scrollBottom(true);
+}
+
+function flushDeltaBuffers() {
+  S.deltaFrame = 0;
+  if (!S.deltaBuffers.size) return;
+  for (const [messageId, text] of S.deltaBuffers) {
+    let live = S.liveByMessage.get(messageId);
+    if (!live) {
+      live = makeEl('div', 'msg assistant');
+      live.dataset.messageId = messageId;
+      const bubble = makeEl('div', 'bubble live');
+      live.appendChild(bubble);
+      appendMessage(live);
+      S.liveByMessage.set(messageId, live);
+    }
+    const bubble = live.querySelector('.bubble');
+    bubble.textContent += text;
+  }
+  S.deltaBuffers.clear();
+  if (S.autoScroll) {
+    const box = $('#messages');
+    box.scrollTop = box.scrollHeight;
+  }
+}
+
+function queueDelta(messageId, text) {
+  if (!messageId || !text) return;
+  S.deltaBuffers.set(messageId, (S.deltaBuffers.get(messageId) || '') + text);
+  if (!S.deltaFrame) S.deltaFrame = requestAnimationFrame(flushDeltaBuffers);
 }
 
 function appendMessage(el) {
@@ -1432,6 +1576,7 @@ function makeEl(tag, className, html = '') {
 
 function applyClaudeEvent(event, { initial = false } = {}) {
   if (!event || !event.event) return;
+  if (event.event !== 'delta') flushDeltaBuffers();
   if (!initial) {
     if (event.event === 'user') {
       S.thinkingTokens = 0;
@@ -1455,18 +1600,7 @@ function applyClaudeEvent(event, { initial = false } = {}) {
     updateThinkingIndicator();
   }
   if (event.event === 'delta') {
-    let live = S.liveByMessage.get(event.messageId);
-    if (!live) {
-      live = makeEl('div', 'msg assistant');
-      live.dataset.messageId = event.messageId;
-      const bubble = makeEl('div', 'bubble live');
-      live.appendChild(bubble);
-      appendMessage(live);
-      S.liveByMessage.set(event.messageId, live);
-    }
-    const bubble = live.querySelector('.bubble');
-    bubble.textContent += event.text || '';
-    if (S.autoScroll) scrollBottom();
+    queueDelta(event.messageId, event.text || '');
     return;
   }
 

@@ -12,7 +12,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icons/icon-192.png" sizes="192x192">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="/styles.css?v=20261107-25">
+  <link rel="stylesheet" href="/styles.css?v=20261107-26">
   <title>RemoteDeck</title>
 </head>
 <body>
@@ -439,7 +439,7 @@
         <div class="card">
           <div class="card-head"><h2>手机屏幕</h2><svg class="icon accent"><use href="#i-eye"/></svg></div>
           <div class="switch-row">
-            <div><strong>防止自动熄屏</strong><span class="muted small">HTTP 手机连接也可用兼容模式；HTTPS 使用系统 Wake Lock。</span></div>
+            <div><strong>防止自动熄屏</strong><span class="muted small">默认开启；HTTP 用兼容模式，HTTPS 用系统 Wake Lock。</span></div>
             <label class="switch"><input type="checkbox" id="wake-lock-toggle"><span></span></label>
           </div>
           <p class="hint" id="wake-lock-hint">开启后，本页面可见时会保持屏幕常亮；切到后台自动释放。</p>
@@ -620,6 +620,6 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="/vendor/nosleep.js"></script>
-  <script src="/app.js?v=20261107-25" type="module"></script>
+  <script src="/app.js?v=20261107-26" type="module"></script>
 </body>
 </html>
