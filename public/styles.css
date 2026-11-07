@@ -48,7 +48,9 @@ body {
   background:
     radial-gradient(1100px 600px at 85% -12%, rgba(101, 168, 255, 0.16), transparent 60%),
     radial-gradient(900px 600px at -10% 10%, rgba(110, 231, 216, 0.10), transparent 55%),
-    radial-gradient(700px 500px at 50% 115%, rgba(167, 139, 250, 0.09), transparent 60%),
+    radial-gradient(650px 360px at 18% 112%, rgba(110, 231, 216, 0.10), transparent 65%),
+    radial-gradient(700px 420px at 82% 112%, rgba(101, 168, 255, 0.12), transparent 65%),
+    radial-gradient(700px 500px at 50% 115%, rgba(167, 139, 250, 0.16), transparent 60%),
     var(--bg);
   overflow: hidden;
   overscroll-behavior: none;
@@ -503,8 +505,8 @@ button.full, .full { width: 100%; }
 .permission-bar span { flex: 1; }
 .composer {
   margin: 6px 10px 0; padding: 6px 6px 6px 12px; display: flex; align-items: flex-end; gap: 7px;
-  background: rgba(17, 26, 43, 0.9); border: 1px solid var(--line-strong);
-  border-radius: 17px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.24);
+  background: rgba(17, 26, 43, 0.76); border: 1px solid var(--line-strong);
+  border-radius: 17px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
   min-width: 0;
 }
 .composer textarea {
@@ -521,6 +523,7 @@ button.full, .full { width: 100%; }
 .composer-meta {
   display: flex; justify-content: space-between; align-items: center; gap: 8px;
   padding: 7px 14px calc(7px + var(--safe-bottom)); color: var(--faint); font-size: 9.5px;
+  background: transparent;
 }
 .composer-meta > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .composer-meta-actions { display: flex; align-items: center; gap: 1px; flex: 0 0 auto; }
@@ -624,8 +627,8 @@ button.full, .full { width: 100%; }
   height: calc(var(--tabbar-h) + var(--safe-bottom));
   padding: 6px 8px var(--safe-bottom);
   display: flex; align-items: stretch;
-  background: rgba(7, 11, 20, 0.97);
-  border-top: 1px solid var(--line);
+  background: transparent;
+  border-top: 0;
   max-width: 900px; margin: 0 auto;
 }
 .tab {
@@ -634,7 +637,7 @@ button.full, .full { width: 100%; }
   font-size: 9.5px; font-weight: 600; border-radius: 12px;
 }
 .tab .icon { width: 21px; height: 21px; }
-.tab.active { color: var(--accent); background: rgba(110, 231, 216, 0.05); }
+.tab.active { color: var(--accent); background: rgba(110, 231, 216, 0.08); }
 .tab.active .icon { stroke-width: 2; }
 
 /* ---------- Sheets / dialogs ---------- */
