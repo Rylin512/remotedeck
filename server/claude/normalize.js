@@ -122,6 +122,13 @@ export function contentToText(content) {
   return '';
 }
 
+function cleanToolText(text) {
+  return String(text == null ? '' : text)
+    .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/gi, '')
+    .replace(/^\s*Warning:\s*/i, '')
+    .trim();
+}
+
 function toolResultEvents(message, ts) {
   const events = [];
   const content = message?.message?.content;
@@ -133,7 +140,7 @@ function toolResultEvents(message, ts) {
       event: 'tool_result',
       id: `tool:${block.tool_use_id}:result`,
       toolUseId: block.tool_use_id,
-      text: clip(text, MAX_TOOL_TEXT),
+      text: clip(cleanToolText(text), MAX_TOOL_TEXT),
       isError: Boolean(block.is_error),
       ts,
     });
@@ -204,7 +211,7 @@ function assistantEvents(msg) {
           event: 'tool_result',
           id: `tool:${block.tool_use_id}:result`,
           toolUseId: block.tool_use_id,
-          text: clip(contentToText(block.content), MAX_TOOL_TEXT),
+          text: clip(cleanToolText(contentToText(block.content)), MAX_TOOL_TEXT),
           isError: Boolean(block.is_error),
           ts,
         });

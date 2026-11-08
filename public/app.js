@@ -730,7 +730,7 @@ function onPermissionEvent(data) {
   S.permissions.set(permission.requestId, permission);
   renderPendingBar();
   if (navigator.vibrate) navigator.vibrate([40, 40, 40]);
-  if (S.activeSessionId === permission.sessionId && !$('#permission-dialog').open) {
+  if (!$('#permission-dialog').open && !$('#question-dialog').open) {
     showPermission(permission);
   } else {
     toast(`Claude 请求批准：${permission.toolName}`);
@@ -742,12 +742,12 @@ function onPermissionResolved(data) {
   if (S.currentPermission?.requestId === data.requestId) {
     hidePermissionDialog();
     setTimeout(() => {
-      const nextQuestion = [...S.questions.values()].find((q) => q.sessionId === S.activeSessionId);
+      const nextQuestion = [...S.questions.values()][0];
       if (nextQuestion) {
         showQuestion(nextQuestion);
         return;
       }
-      const next = [...S.permissions.values()].find((p) => p.sessionId === S.activeSessionId);
+      const next = [...S.permissions.values()][0];
       if (next) showPermission(next);
     }, 250);
   }
@@ -760,7 +760,7 @@ function onQuestionEvent(data) {
   S.questions.set(question.requestId, question);
   renderPendingBar();
   if (navigator.vibrate) navigator.vibrate([40, 40, 40]);
-  if (S.activeSessionId === question.sessionId && !$('#question-dialog').open) {
+  if (!$('#question-dialog').open && !$('#permission-dialog').open) {
     showQuestion(question);
   } else {
     toast('Claude 有问题需要你选择');
@@ -773,10 +773,10 @@ function onQuestionResolved(data) {
     S.currentQuestion = null;
     if ($('#question-dialog').open) $('#question-dialog').close();
     setTimeout(() => {
-      const next = [...S.questions.values()].find((q) => q.sessionId === S.activeSessionId);
+      const next = [...S.questions.values()][0];
       if (next) showQuestion(next);
       else {
-        const nextPermission = [...S.permissions.values()].find((p) => p.sessionId === S.activeSessionId);
+        const nextPermission = [...S.permissions.values()][0];
         if (nextPermission) showPermission(nextPermission);
       }
     }, 250);
@@ -1519,8 +1519,8 @@ function updateComposerState() {
 }
 
 function renderPendingBar() {
-  const permissions = [...S.permissions.values()].filter((p) => !S.activeSessionId || p.sessionId === S.activeSessionId);
-  const questions = [...S.questions.values()].filter((q) => !S.activeSessionId || q.sessionId === S.activeSessionId);
+  const permissions = [...S.permissions.values()];
+  const questions = [...S.questions.values()];
   const pending = permissions.length + questions.length;
   $('#pending-permission-bar').hidden = pending === 0;
   if (pending) {
@@ -1777,7 +1777,11 @@ function applyClaudeEvent(event, { initial = false } = {}) {
         result.className = 'tool-result';
         card.appendChild(result);
       }
-      result.innerHTML = `<div class="result-label">${event.isError ? '错误输出' : '结果'}</div><pre>${escapeHtml(String(event.text || '').slice(0, 12_000))}</pre>`;
+      let resultText = String(event.text || '')
+        .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/gi, '')
+        .trim();
+      if (toolName === 'Read' && !resultText) resultText = '文件为空';
+      result.innerHTML = `<div class="result-label">${event.isError ? '错误输出' : '结果'}</div><pre>${escapeHtml(resultText.slice(0, 12_000))}</pre>`;
     } else {
       const chip = makeEl('div', `chip ${event.isError ? 'err' : ''}`, `<svg class="icon"><use href="#i-tool"/></svg>${escapeHtml(String(event.text || '').slice(0, 180))}`);
       appendMessage(chip);
@@ -1851,12 +1855,24 @@ function scrollBottom(force = false) {
 function showPermission(permission) {
   if (!permission || $('#permission-dialog').open) return;
   S.currentPermission = permission;
-  $('#permission-tool-name').textContent = permission.toolName || 'Tool';
-  $('#permission-title').textContent = permission.title || 'Claude 想执行一个操作。';
+  const isPlan = permission.kind === 'plan';
+  const dialog = $('#permission-dialog');
+  const plan = String(permission.plan || permission.input?.plan || permission.input?.plan_text || '').trim();
+  dialog.querySelector('.eyebrow').textContent = isPlan ? 'PLAN APPROVAL' : 'PERMISSION REQUEST';
+  dialog.querySelector('h2').textContent = isPlan ? '批准计划并开始执行' : 'Claude 请求执行操作';
+  $('#permission-tool-name').textContent = isPlan ? 'ExitPlanMode' : (permission.toolName || 'Tool');
+  $('#permission-title').textContent = isPlan ? 'Claude 已完成规划' : (permission.title || 'Claude 想执行一个操作。');
   $('#permission-desc').textContent = permission.description || '';
   $('#permission-input').textContent = JSON.stringify(permission.input || {}, null, 2);
-  $('#permission-always').hidden = !permission.canAlwaysAllow;
-  $('#permission-dialog').showModal();
+  const planPreview = $('#plan-preview');
+  const details = dialog.querySelector('.tool-input-details');
+  planPreview.hidden = !isPlan;
+  details.hidden = isPlan;
+  if (isPlan) planPreview.innerHTML = plan ? markdown(plan) : '<p class="muted small">计划正文不可用。</p>';
+  $('#permission-always').hidden = isPlan || !permission.canAlwaysAllow;
+  $('#permission-allow').textContent = isPlan ? '批准计划并执行' : '允许一次';
+  $('#permission-deny').textContent = isPlan ? '继续规划' : '拒绝';
+  dialog.showModal();
 }
 
 function hidePermissionDialog() {
@@ -2456,12 +2472,12 @@ function bindEvents() {
     renderPendingBar();
   });
   $('#review-permission-btn').addEventListener('click', () => {
-    const question = [...S.questions.values()].find((q) => q.sessionId === S.activeSessionId);
+    const question = [...S.questions.values()][0];
     if (question) {
       showQuestion(question);
       return;
     }
-    const first = [...S.permissions.values()].find((p) => p.sessionId === S.activeSessionId);
+    const first = [...S.permissions.values()][0];
     if (first) showPermission(first);
   });
 

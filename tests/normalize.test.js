@@ -47,6 +47,24 @@ test('thinking events use exact token details when available', () => {
   assert.equal(events[0].estimated, false);
 });
 
+test('tool results strip system-reminder wrappers', () => {
+  const { events } = normalizeSdkMessage({
+    type: 'user', uuid: 'u-reminder', timestamp: '2026-01-01T00:00:02Z',
+    message: {
+      role: 'user',
+      content: [{
+        type: 'tool_result',
+        tool_use_id: 'read-empty',
+        content: '<system-reminder>Warning: the file exists but the contents are empty.</system-reminder>',
+        is_error: false,
+      }],
+    },
+  });
+  assert.equal(events[0].event, 'tool_result');
+  assert.equal(events[0].text, '');
+  assert.equal(events[0].isError, false);
+});
+
 test('tool results are paired by tool_use_id', () => {
   const { events } = normalizeSdkMessage({
     type: 'user', uuid: 'u2', timestamp: '2026-01-01T00:00:01Z',

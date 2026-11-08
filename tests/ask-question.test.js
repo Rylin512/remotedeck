@@ -50,3 +50,32 @@ test('AskUserQuestion answers are returned through updatedInput.answers', async 
   });
   assert.equal(session.pendingQuestions.size, 0);
 });
+
+test('ExitPlanMode is exposed as a plan approval permission', async () => {
+  const events = [];
+  const manager = new ClaudeManager({ hub: { broadcast: (type, payload) => events.push({ type, payload }) } });
+  const session = {
+    id: 'plan-test',
+    title: 'Plan test',
+    status: 'running',
+    closed: false,
+    messages: [],
+    pendingPermissions: new Map(),
+    pendingQuestions: new Map(),
+    streaming: false,
+  };
+  manager.sessions.set(session.id, session);
+  const promise = manager.handleCanUseTool(
+    session,
+    'ExitPlanMode',
+    { plan: '# Plan\n\n1. Read\n2. Change' },
+    {},
+  );
+  const permission = events.find((item) => item.type === 'permission')?.payload?.permission;
+  assert.equal(permission.kind, 'plan');
+  assert.match(permission.plan, /# Plan/);
+  manager.resolvePermission(session.id, permission.requestId, 'allow');
+  const result = await promise;
+  assert.equal(result.behavior, 'allow');
+  assert.equal(session.pendingPermissions.size, 0);
+});

@@ -151,6 +151,8 @@ export class ClaudeManager {
       defaultToNo: Boolean(p.defaultToNo),
       canAlwaysAllow: !p.suppressAlwaysAllowRule && Array.isArray(p.suggestions) && p.suggestions.length > 0,
       agentId: p.agentId || null,
+      kind: p.kind || 'tool',
+      plan: p.plan || '',
     };
   }
 
@@ -504,16 +506,24 @@ export class ClaudeManager {
       return this.askUserQuestion(session, input, opts);
     }
     const requestId = opts.requestId || crypto.randomUUID();
+    const isPlan = toolName === 'ExitPlanMode';
+    const planText = isPlan
+      ? String(input?.plan || input?.plan_text || opts.description || '').slice(0, 12_000)
+      : '';
     const pending = {
       requestId,
       toolName,
       input,
-      title: opts.title || toolTitle(toolName, input),
-      description: opts.description || '',
-      suggestions: opts.suggestions || [],
+      title: isPlan ? '计划确认' : (opts.title || toolTitle(toolName, input)),
+      description: isPlan
+        ? (planText ? 'Claude 已完成规划。批准后会退出规划模式并开始执行。' : 'Claude 请求退出规划模式，但没有提供可显示的计划正文。')
+        : (opts.description || ''),
+      suggestions: isPlan ? [] : (opts.suggestions || []),
       defaultToNo: Boolean(opts.defaultToNo),
-      suppressAlwaysAllowRule: Boolean(opts.suppressAlwaysAllowRule),
+      suppressAlwaysAllowRule: isPlan || Boolean(opts.suppressAlwaysAllowRule),
       agentId: opts.agentID || null,
+      kind: isPlan ? 'plan' : 'tool',
+      plan: planText,
       createdAt: Date.now(),
       resolve: null,
       timer: null,

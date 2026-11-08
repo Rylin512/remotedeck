@@ -51,7 +51,9 @@ RemoteDeck 在 Windows 本机运行一个小型控制服务：手机浏览器通
 | Edit 差异 | Edit/MultiEdit 直接显示绿色新增行和红色删除行及增删统计，不再展示原始参数和成功结果 |
 | 思考状态 | 显示「Claude 正在思考 / 正在执行工具 / 正在输出」和 token 用量，不展开思考正文 |
 | 会话状态 | 「正在对话 / 历史对话」跟随 SSE 事件即时更新，不依赖慢缓存 |
-| 选择题回答 | Claude 使用 AskUserQuestion 时，手机端可选择选项、多选或填写「其他」自定义答案 |
+| 选择题回答 | Claude 使用 AskUserQuestion 时，手机端可选择选项、多选或填写「其他」自定义答案；问题在其他会话也会直接弹出 |
+| 计划审批 | Plan 模式的 ExitPlanMode 会显示完整计划和「批准计划并执行 / 继续规划」 |
+| 工具结果清理 | 去除 tool result 里的 system-reminder；Read 空文件显示「文件为空」而非 Warning |
 | 防止熄屏 | 默认开启手机屏幕常亮；HTTP 下使用静音视频兼容模式，HTTPS 使用系统 Wake Lock |
 | 断线恢复 | 手机熄屏/切后台再回来后自动重连 SSE 并重新拉取会话，补齐漏掉的消息 |
 | 消息流畅 | 流式文本按动画帧批量合并渲染，减少每 token 的 DOM 重排 |
@@ -296,7 +298,7 @@ npm run icon:generate              # 重新生成图标
 
 ```powershell
 npm run check     # 语法检查
-npm test          # 38 个自动化测试
+npm test          # 40 个自动化测试
 npm run desktop   # 桌面版
 ```
 
