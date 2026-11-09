@@ -129,6 +129,13 @@ function cleanToolText(text) {
     .trim();
 }
 
+function isCompactSummary(text) {
+  const value = String(text || '').trim();
+  if (!value) return false;
+  return /^This session is being continued from a previous conversation that ran out of context\./i.test(value)
+    || (/<tools-used-before-summary>/i.test(value) && /(?:^|\n)Summary:/i.test(value));
+}
+
 function toolResultEvents(message, ts) {
   const events = [];
   const content = message?.message?.content;
@@ -307,7 +314,9 @@ export function normalizeSdkMessage(msg, streamState = null) {
           ts,
         });
       } else if (msg.subtype === 'compact_boundary') {
-        events.push({ event: 'system', id: uid(), text: '上下文已压缩', ts });
+        // Compaction is an internal context-management step. Do not surface
+        // the boundary or its summary in the conversation.
+        break;
       } else if (msg.subtype === 'rate_limit_event') {
         events.push({
           event: 'rate_limit',
@@ -340,12 +349,13 @@ export function normalizeSdkMessage(msg, streamState = null) {
     }
     case 'user': {
       if (msg.isReplay) break;
+      if (msg.isCompactSummary === true) break;
       const toolEvents = toolResultEvents(msg, ts);
       if (toolEvents.length) {
         events.push(...toolEvents);
       } else {
         const text = contentToText(msg.message?.content);
-        if (text) {
+        if (text && !isCompactSummary(text)) {
           events.push({
             event: 'user',
             id: msg.uuid || uid(),
@@ -448,6 +458,7 @@ export function normalizeHistoryMessage(sm) {
     }];
   }
   if (sm.isMeta === true) return [];
+  if (sm.isCompactSummary === true) return [];
   if (sm.type === 'assistant') {
     return assistantEvents({ message: sm.message, uuid: sm.uuid, timestamp: ts });
   }
@@ -455,10 +466,11 @@ export function normalizeHistoryMessage(sm) {
     const events = toolResultEvents({ message: sm.message }, ts);
     if (events.length) return events;
     const text = contentToText(sm.message?.content);
-    if (!text) return [];
+    if (!text || isCompactSummary(text)) return [];
     return [{ event: 'user', id: sm.uuid, text: clip(text), source: 'user', ts }];
   }
   if (sm.type === 'system') {
+    if (sm.subtype === 'compact_boundary') return [];
     const text = contentToText(sm.message?.content);
     if (!text) return [];
     return [{ event: 'system', id: sm.uuid, text: clip(text), ts }];

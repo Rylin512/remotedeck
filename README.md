@@ -299,7 +299,7 @@ npm run icon:generate              # 重新生成图标
 
 ```powershell
 npm run check     # 语法检查
-npm test          # 41 个自动化测试
+npm test          # 42 个自动化测试
 npm run desktop   # 桌面版
 ```
 

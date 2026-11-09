@@ -47,6 +47,33 @@ test('thinking events use exact token details when available', () => {
   assert.equal(events[0].estimated, false);
 });
 
+test('compaction summary and boundary are hidden from history', () => {
+  assert.deepEqual(normalizeHistoryMessage({
+    type: 'system',
+    subtype: 'compact_boundary',
+    content: 'Conversation compacted',
+    uuid: 'compact-1',
+    timestamp: '2026-01-01T00:00:00Z',
+  }), []);
+  assert.deepEqual(normalizeHistoryMessage({
+    type: 'user',
+    uuid: 'compact-summary',
+    timestamp: '2026-01-01T00:00:01Z',
+    message: {
+      role: 'user',
+      content: 'This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion.\n\nSummary: secret',
+    },
+  }), []);
+  const { events } = normalizeSdkMessage({
+    type: 'user',
+    uuid: 'compact-live',
+    timestamp: '2026-01-01T00:00:02Z',
+    isCompactSummary: true,
+    message: { role: 'user', content: 'summary' },
+  });
+  assert.equal(events.length, 0);
+});
+
 test('tool results strip system-reminder wrappers', () => {
   const { events } = normalizeSdkMessage({
     type: 'user', uuid: 'u-reminder', timestamp: '2026-01-01T00:00:02Z',
