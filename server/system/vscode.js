@@ -44,6 +44,7 @@ export function bridgeCapabilities() {
           version: String(pkg.version || '0.0.0'),
           capabilities,
           supportsOpenSession: capabilities.includes('openSession'),
+          supportsReopenSession: capabilities.includes('reopenSession'),
         };
       } catch {}
     }
@@ -222,7 +223,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  * Ensure a VS Code window for cwd is open, then ask the bridge extension to
  * reopen the given Claude session in that window.
  */
-export async function openSessionInVSCode(sessionId, cwd) {
+export async function openSessionInVSCode(sessionId, cwd, { force = false, title = '' } = {}) {
   if (!/^[0-9a-f-]{20,}$/i.test(String(sessionId || ''))) {
     throw Object.assign(new Error('无效的会话 ID'), { status: 400 });
   }
@@ -275,7 +276,10 @@ export async function openSessionInVSCode(sessionId, cwd) {
     }
   }
 
-  await openUri(protocolUri('openSession', { sessionId }));
+  await openUri(protocolUri('openSession', {
+    sessionId,
+    ...(force ? { force: '1', title: title || '' } : {}),
+  }));
   audit('vscode.session.open', `${sessionId} ${workdir}${launched ? ' (launched window)' : ''}${alreadyRunning ? ' (already running)' : ''}`);
   return {
     ok: true,
