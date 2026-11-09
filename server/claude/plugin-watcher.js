@@ -403,6 +403,27 @@ export class PluginWatcher {
     return null;
   }
 
+  async pendingPrompt(id) {
+    const data = await this.getSession(id, { limit: 400 });
+    const results = new Set();
+    for (const event of data.messages) {
+      if (event.event === 'tool_result' && event.toolUseId) results.add(event.toolUseId);
+    }
+    for (let i = data.messages.length - 1; i >= 0; i -= 1) {
+      const event = data.messages[i];
+      if (event.event !== 'tool_use' || results.has(event.toolUseId)) continue;
+      if (event.name === 'AskUserQuestion') {
+        const questions = Array.isArray(event.input?.questions) ? event.input.questions : [];
+        if (questions.length) return { kind: 'question', questions };
+      }
+      if (event.name === 'ExitPlanMode') {
+        const plan = String(event.input?.plan || event.input?.plan_text || '').slice(0, 12_000);
+        return { kind: 'plan', plan, title: event.title || '' };
+      }
+    }
+    return null;
+  }
+
   async getSession(id, { limit = 120 } = {}) {
     const maxMessages = Math.max(20, Math.min(1000, Number(limit) || 120));
     if (!/^[0-9a-f-]{20,}$/i.test(String(id))) {

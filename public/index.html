@@ -12,7 +12,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icons/icon-192.png" sizes="192x192">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="/styles.css?v=20261108-38">
+  <link rel="stylesheet" href="/styles.css?v=20261109-39">
   <title>RemoteDeck</title>
 </head>
 <body>
@@ -209,6 +209,12 @@
             <button class="icon-btn" id="chat-menu-btn" aria-label="会话操作"><svg class="icon"><use href="#i-more"/></svg></button>
           </div>
 
+          <div id="takeover-bar" class="takeover-bar" hidden>
+            <span>手机已接管此会话</span>
+            <button type="button" class="text-btn" id="takeover-pending-btn" hidden>处理待回答</button>
+            <button type="button" class="small-btn" id="takeover-handback">交还 VS Code</button>
+          </div>
+
           <div class="messages-area">
             <div id="messages" class="messages" role="log" aria-live="polite"></div>
             <button id="jump-bottom" class="jump-bottom" hidden>回到底部 <svg class="icon"><use href="#i-chevron"/></svg></button>
@@ -249,6 +255,7 @@
               <span id="composer-status">逐项批准模式 · 输出实时同步</span>
               <span class="composer-meta-actions">
                 <button type="button" class="text-btn" id="plugin-open-vscode-inline" hidden>VS Code</button>
+                <button type="button" class="text-btn" id="plugin-takeover-inline" hidden>接管</button>
                 <button type="button" class="text-btn" id="plugin-resume-inline" hidden>继续对话</button>
                 <button type="button" class="text-btn danger-text" id="plugin-close-inline" hidden>关闭会话</button>
                 <button type="button" class="text-btn" id="quick-interrupt">中断当前任务</button>
@@ -523,6 +530,21 @@
     </div>
   </dialog>
 
+  <dialog id="takeover-dialog" class="sheet">
+    <div class="sheet-grip"></div>
+    <div class="sheet-head">
+      <div><div class="eyebrow">HANDOFF</div><h2>接管这个会话？</h2></div>
+      <button class="icon-btn" data-close-dialog="takeover-dialog" aria-label="关闭"><svg class="icon"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="sheet-body">
+      <p class="muted small">接管会结束 VS Code 里正在运行的 Claude 进程，之后由手机继续同一个会话。完成后可以点「交还 VS Code」回到原窗口；面板会重新建立，滚动位置和未发送草稿不会保留。</p>
+    </div>
+    <div class="sheet-actions stack">
+      <button class="primary" id="takeover-confirm">确认接管</button>
+      <button class="ghost" data-close-dialog="takeover-dialog">取消</button>
+    </div>
+  </dialog>
+
   <dialog id="power-dialog" class="sheet">
     <div class="sheet-grip"></div>
     <div class="sheet-head">
@@ -623,6 +645,6 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="/vendor/nosleep.js"></script>
-  <script src="/app.js?v=20261108-38" type="module"></script>
+  <script src="/app.js?v=20261109-39" type="module"></script>
 </body>
 </html>

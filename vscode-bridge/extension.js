@@ -3,7 +3,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const EXTENSION_VERSION = '0.1.1';
+const EXTENSION_VERSION = '0.1.2';
 const READY_DIR = path.join(os.homedir(), '.remotedeck');
 const READY_FILE = path.join(READY_DIR, 'bridge-state.json');
 
@@ -12,7 +12,7 @@ function writeReadyState() {
     fs.mkdirSync(READY_DIR, { recursive: true });
     fs.writeFileSync(READY_FILE, JSON.stringify({
       version: EXTENSION_VERSION,
-      capabilities: ['openSession', 'prompt'],
+      capabilities: ['openSession', 'reopenSession', 'prompt'],
       pid: process.pid,
       workspaceFolders: (vscode.workspace.workspaceFolders || []).map((folder) => folder.uri.fsPath),
       updatedAt: new Date().toISOString(),
@@ -80,6 +80,23 @@ async function openClaudeSession(sessionId) {
   );
 }
 
+async function closeClaudeTabs(title) {
+  const wanted = String(title || '').trim();
+  const tabs = vscode.window.tabGroups.all.flatMap((group) => group.tabs);
+  const claudeTabs = tabs.filter((tab) => {
+    const input = tab.input;
+    return input instanceof vscode.TabInputWebview
+      && String(input.viewType || '').toLowerCase().includes('claude');
+  });
+  let target = wanted ? claudeTabs.filter((tab) => String(tab.label || '').includes(wanted)) : claudeTabs;
+  if (!target.length && claudeTabs.length === 1) target = claudeTabs;
+  for (const tab of target) {
+    try {
+      await vscode.window.tabGroups.close(tab);
+    } catch {}
+  }
+}
+
 async function openPath(target, line) {
   const uri = vscode.Uri.file(target);
   if (line) {
@@ -101,6 +118,10 @@ async function handleUri(uri) {
       await sendPrompt(params.get('text') || '');
       break;
     case 'openSession':
+      if (params.get('force') === '1') {
+        await closeClaudeTabs(params.get('title') || '');
+        await delay(250);
+      }
       await openClaudeSession(params.get('sessionId') || '');
       break;
     case 'open':

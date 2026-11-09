@@ -386,7 +386,7 @@ async function handleApi(req, res, pathname, url, manager, tunnel, hub, watcher,
     return json(res, 201, { session: created });
   }
 
-  const sessionMatch = pathname.match(/^\/api\/claude\/sessions\/([0-9a-f-]+)(?:\/(prompt|interrupt|stop|permission|question|mode))?$/i);
+  const sessionMatch = pathname.match(/^\/api\/claude\/sessions\/([0-9a-f-]+)(?:\/(prompt|interrupt|stop|permission|question|mode|handback))?$/i);
   if (sessionMatch) {
     const [, id, action] = sessionMatch;
     if (method === 'GET' && !action) {
@@ -408,6 +408,11 @@ async function handleApi(req, res, pathname, url, manager, tunnel, hub, watcher,
     if (method === 'POST' && action === 'prompt') {
       const body = await readJson(req);
       const result = await manager.prompt(id, body.text);
+      const current = manager.sessions.get(id);
+      if (current?.takeover?.pending) {
+        current.takeover.pending = null;
+        manager.broadcastSession(current);
+      }
       return json(res, 200, result);
     }
     if (method === 'POST' && action === 'interrupt') {
@@ -430,6 +435,18 @@ async function handleApi(req, res, pathname, url, manager, tunnel, hub, watcher,
     if (method === 'POST' && action === 'mode') {
       const body = await readJson(req);
       return json(res, 200, await manager.setPermissionMode(id, String(body.mode || '')));
+    }
+    if (method === 'POST' && action === 'handback') {
+      const session = manager.sessions.get(id);
+      if (!session?.takeover) return fail(res, 400, '这个会话不是手机接管会话');
+      const takeover = session.takeover;
+      await manager.stop(id);
+      const result = await openSessionInVSCode(takeover.pluginId, takeover.cwd, {
+        force: true,
+        title: takeover.pluginTitle || '',
+      });
+      audit('claude.handback', `${takeover.pluginId} ${takeover.cwd}`);
+      return json(res, 200, { ok: true, result, takeover });
     }
   }
 
@@ -464,6 +481,46 @@ async function handleApi(req, res, pathname, url, manager, tunnel, hub, watcher,
     audit('claude.plugin.message', `${pluginMessageMatch[1]} ${mode} ${String(body.text || '').slice(0, 120)}`);
     return json(res, 200, { ok: true, message: sent });
   }
+  const pluginTakeoverMatch = pathname.match(/^\/api\/claude\/plugin\/sessions\/([0-9a-f-]+)\/takeover$/i);
+  if (method === 'POST' && pluginTakeoverMatch) {
+    if (!watcher) return fail(res, 503, '插件监视器未启动', 'NOT_AVAILABLE');
+    const body = await readJson(req);
+    if (body.confirm !== '接管') return fail(res, 400, '请输入“接管”确认', 'CONFIRM_REQUIRED');
+    const pluginId = pluginTakeoverMatch[1];
+    const data = await watcher.getSession(pluginId, { limit: 200 });
+    if (!data.session?.live) return fail(res, 409, '插件会话已结束，无法接管');
+    const pending = await watcher.pendingPrompt(pluginId);
+    await closePluginSession(pluginId, { confirm: '关闭' });
+    watcher.markClosed(pluginId);
+    hub.broadcast('plugin_closed', { sessionId: pluginId });
+    let created;
+    try {
+      created = await manager.create({
+        cwd: data.session.cwd,
+        resume: pluginId,
+        forkSession: false,
+        title: `接管 · ${data.session.title || 'Claude Code'}`,
+      });
+    } catch (err) {
+      await openSessionInVSCode(pluginId, data.session.cwd).catch(() => {});
+      throw err;
+    }
+    const session = manager.sessions.get(created.id);
+    session.takeover = {
+      pluginId,
+      pluginTitle: data.session.title || '',
+      cwd: data.session.cwd,
+      pending: pending || null,
+      createdAt: Date.now(),
+    };
+    manager.broadcastSession(session);
+    audit('claude.takeover', `${pluginId} -> ${created.id}`);
+    return json(res, 201, {
+      session: manager.snapshot(session, { includeMessages: true }),
+      pending: pending || null,
+    });
+  }
+
   const pluginCloseMatch = pathname.match(/^\/api\/claude\/plugin\/sessions\/([0-9a-f-]+)\/close$/i);
   if (method === 'POST' && pluginCloseMatch) {
     const body = await readJson(req);

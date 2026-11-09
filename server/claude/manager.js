@@ -132,6 +132,7 @@ export class ClaudeManager {
       pendingQuestions: [...(session.pendingQuestions || new Map()).values()].map((q) => this.questionSnapshot(q)),
       messageCount: session.messages.length,
       resumedFrom: session.resumedFrom || null,
+      takeover: session.takeover || null,
     };
     if (includeMessages) {
       data.messages = session.messages;

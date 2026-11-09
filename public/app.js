@@ -50,6 +50,7 @@ const S = {
   questions: new Map(),
   currentPermission: null,
   currentQuestion: null,
+  takeoverBusy: false,
   powerAction: null,
   autoScroll: true,
   qrUrl: null,
@@ -713,6 +714,7 @@ function onSessionEvent(data) {
     renderSessionHeader();
     updateComposerState();
     renderPendingBar();
+    renderTakeoverBar();
   }
   renderHistory();
   updateThinkingIndicator();
@@ -984,8 +986,10 @@ function updatePluginHeader() {
   $('#prompt-input').disabled = !s.live;
   $('#send-btn').disabled = !s.live;
   $('#plugin-open-vscode-inline').hidden = false;
+  $('#plugin-takeover-inline').hidden = !s.live;
   $('#plugin-resume-inline').hidden = Boolean(s.live);
   $('#plugin-close-inline').hidden = !s.live;
+  $('#takeover-bar').hidden = true;
   if (!s.live) $('#prompt-input').placeholder = '会话已结束，请点“继续对话”恢复';
   updateComposerStatusRow();
 }
@@ -1368,6 +1372,7 @@ async function loadSession(id) {
   showActive();
   $('#chat-menu-btn').hidden = false;
   $('#plugin-send-mode').hidden = true;
+  $('#plugin-takeover-inline').hidden = true;
   $('#prompt-input').disabled = false;
   $('#send-btn').disabled = false;
   $('#prompt-input').placeholder = '给 Claude 发指令…';
@@ -1378,6 +1383,8 @@ async function loadSession(id) {
   scrollBottom(true);
   updateThinkingIndicator();
   syncQuestionsFromSession(S.session);
+  renderTakeoverBar();
+  if (S.session.takeover?.pending) setTimeout(() => showTakeoverPending(S.session.takeover.pending), 250);
 }
 
 function showActive() {
@@ -1400,6 +1407,8 @@ function showEmptyChat() {
   S.currentQuestion = null;
   S.messageLimit = 120;
   S.hasOlder = false;
+  $('#takeover-bar').hidden = true;
+  $('#plugin-takeover-inline').hidden = true;
   if ($('#question-dialog')?.open) $('#question-dialog').close();
   hideThinkingIndicator();
   localStorage.removeItem('rd_active_session');
@@ -1498,6 +1507,7 @@ function updateComposerState() {
     $('#send-btn').disabled = !live;
     $('#quick-interrupt').hidden = true;
     $('#plugin-open-vscode-inline').hidden = false;
+    $('#plugin-takeover-inline').hidden = !live;
     $('#plugin-resume-inline').hidden = live;
     $('#plugin-close-inline').hidden = !live;
     const mode = S.pluginMode === 'interrupt' ? '直接打断' : '微调（不打断）';
@@ -1507,6 +1517,7 @@ function updateComposerState() {
     return;
   }
   $('#plugin-open-vscode-inline').hidden = true;
+  $('#plugin-takeover-inline').hidden = true;
   $('#plugin-resume-inline').hidden = true;
   $('#plugin-close-inline').hidden = true;
   const running = S.session && ['running', 'waiting_permission', 'starting'].includes(S.session.status);
@@ -1852,6 +1863,99 @@ function scrollBottom(force = false) {
 
 /* ---------------- Permission ---------------- */
 
+function renderTakeoverBar() {
+  const takeover = S.session?.takeover;
+  const bar = $('#takeover-bar');
+  if (!bar) return;
+  bar.hidden = !takeover;
+  $('#takeover-pending-btn').hidden = !takeover?.pending;
+}
+
+function showTakeoverPending(pending) {
+  const session = S.session;
+  if (!session?.takeover || !pending) return;
+  if (pending.kind === 'plan') {
+    showPermission({
+      requestId: 'takeover-plan',
+      sessionId: session.id,
+      kind: 'plan',
+      takeover: true,
+      plan: pending.plan || '',
+      toolName: 'ExitPlanMode',
+      title: '计划确认',
+      description: '批准后会继续执行这个计划。',
+      input: { plan: pending.plan || '' },
+      canAlwaysAllow: false,
+    });
+    return;
+  }
+  if (pending.kind === 'question' && Array.isArray(pending.questions)) {
+    showQuestion({
+      requestId: 'takeover-question',
+      sessionId: session.id,
+      sessionTitle: session.title,
+      questions: pending.questions,
+      takeover: true,
+    });
+  }
+}
+
+async function takeoverPluginSession() {
+  const id = S.pluginSessionId;
+  if (!id || !S.pluginSession?.live || S.takeoverBusy) return;
+  $('#takeover-dialog').showModal();
+}
+
+async function doTakeoverPluginSession() {
+  const id = S.pluginSessionId;
+  if (!id || !S.pluginSession?.live || S.takeoverBusy) return;
+  const dialog = $('#takeover-dialog');
+  if (dialog.open) dialog.close();
+  const button = $('#plugin-takeover-inline');
+  S.takeoverBusy = true;
+  if (button) button.disabled = true;
+  try {
+    const data = await api(`/api/claude/plugin/sessions/${id}/takeover`, {
+      method: 'POST',
+      body: { confirm: '接管' },
+      timeout: 120_000,
+    });
+    await loadSession(data.session.id);
+    if (data.pending) setTimeout(() => showTakeoverPending(data.pending), 300);
+    toast('已由手机接管；完成后可点“交还 VS Code”');
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    S.takeoverBusy = false;
+    if (button) button.disabled = false;
+  }
+}
+
+async function handbackTakeover() {
+  const session = S.session;
+  if (!session?.takeover || S.takeoverBusy) return;
+  const button = $('#takeover-handback');
+  S.takeoverBusy = true;
+  if (button) button.disabled = true;
+  try {
+    await api(`/api/claude/sessions/${session.id}/handback`, { method: 'POST', body: {}, timeout: 60_000 });
+    showEmptyChat();
+    await refreshState({ silent: true });
+    toast('已交还 VS Code');
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    S.takeoverBusy = false;
+    if (button) button.disabled = false;
+  }
+}
+
+function setTakeoverPending(pending) {
+  if (!S.session?.takeover) return;
+  S.session.takeover.pending = pending || null;
+  renderTakeoverBar();
+}
+
 function showPermission(permission) {
   if (!permission || $('#permission-dialog').open) return;
   S.currentPermission = permission;
@@ -1885,6 +1989,19 @@ async function resolveCurrentPermission(decision, always = false) {
   const permission = S.currentPermission;
   if (!permission) return;
   try {
+    if (permission.takeover) {
+      const text = decision === 'allow'
+        ? '我批准这个计划，请开始执行。'
+        : '我暂时不批准这个计划，请继续保持规划模式，等待我的下一步指示。';
+      await api(`/api/claude/sessions/${permission.sessionId}/prompt`, {
+        method: 'POST',
+        body: { text },
+      });
+      setTakeoverPending(null);
+      hidePermissionDialog();
+      toast(decision === 'allow' ? '已批准计划' : '继续规划');
+      return;
+    }
     await api(`/api/claude/sessions/${permission.sessionId}/permission`, {
       method: 'POST',
       body: { requestId: permission.requestId, decision, always },
@@ -1969,6 +2086,21 @@ async function submitQuestion() {
   const button = $('#question-submit');
   setButtonBusy(button, true, '提交中…');
   try {
+    if (question.takeover) {
+      const lines = question.questions.map((item) => {
+        const answer = answers[item.question];
+        return `问题：${item.question}\n回答：${answer}`;
+      });
+      await api(`/api/claude/sessions/${question.sessionId}/prompt`, {
+        method: 'POST',
+        body: { text: `接管前的问题，我的回答如下：\n\n${lines.join('\n\n')}\n\n请根据这些回答继续。` },
+      });
+      setTakeoverPending(null);
+      S.currentQuestion = null;
+      $('#question-dialog').close();
+      toast('已提交回答，Claude 继续执行');
+      return;
+    }
     await api(`/api/claude/sessions/${question.sessionId}/question`, {
       method: 'POST',
       body: { requestId: question.requestId, answers },
@@ -1990,6 +2122,10 @@ async function skipQuestion() {
   if (!question) return;
   S.currentQuestion = null;
   $('#question-dialog').close();
+  if (question.takeover) {
+    renderTakeoverBar();
+    return;
+  }
   try {
     await api(`/api/claude/sessions/${question.sessionId}/question`, {
       method: 'POST',
@@ -2423,6 +2559,12 @@ function bindEvents() {
   $('#resume-history-btn').addEventListener('click', resumeHistory);
   $('#fork-history-btn').addEventListener('click', forkHistory);
   $('#plugin-open-vscode-inline').addEventListener('click', () => openClaudePanel('panel'));
+  $('#plugin-takeover-inline').addEventListener('click', () => takeoverPluginSession());
+  $('#takeover-confirm').addEventListener('click', () => doTakeoverPluginSession());
+  $('#takeover-handback').addEventListener('click', () => handbackTakeover());
+  $('#takeover-pending-btn').addEventListener('click', () => {
+    if (S.session?.takeover?.pending) showTakeoverPending(S.session.takeover.pending);
+  });
   $('#plugin-resume-inline').addEventListener('click', () => {
     if (!S.pluginSession) return;
     continueHistory({
@@ -2464,6 +2606,10 @@ function bindEvents() {
     if (!S.currentQuestion) return;
     const question = S.currentQuestion;
     S.currentQuestion = null;
+    if (question.takeover) {
+      renderTakeoverBar();
+      return;
+    }
     void api(`/api/claude/sessions/${question.sessionId}/question`, {
       method: 'POST',
       body: { requestId: question.requestId, cancel: true },

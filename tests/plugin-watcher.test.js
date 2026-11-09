@@ -93,6 +93,41 @@ test('outgoing phone messages are not duplicated when the transcript catches up'
   }
 });
 
+test('pendingPrompt captures an unanswered AskUserQuestion', async () => {
+  const root = await fs.mkdtemp(path.join(here, '..', '.tmp-plugin-pending-'));
+  const projects = path.join(root, 'projects');
+  const project = path.join(projects, 'c--Users-demo-project');
+  await fs.mkdir(project, { recursive: true });
+  const id = '11111111-2222-3333-4444-555555555555';
+  const file = path.join(project, `${id}.jsonl`);
+  const base = { cwd: 'C:\\Users\\demo\\project', sessionId: id, timestamp: new Date().toISOString() };
+  await fs.writeFile(file, `${JSON.stringify({
+    ...base, type: 'user', uuid: 'u1', message: { role: 'user', content: 'ask me' },
+  })}\n${JSON.stringify({
+    ...base, type: 'assistant', uuid: 'a1',
+    message: {
+      id: 'm1',
+      content: [{
+        type: 'tool_use',
+        id: 'question-1',
+        name: 'AskUserQuestion',
+        input: { questions: [{ question: 'Which one?', options: [{ label: 'A' }, { label: 'B' }] }] },
+      }],
+    },
+  })}\n`);
+  const watcher = new PluginWatcher({ hub: { broadcast: () => {} }, projectsDir: projects, liveResolver: () => true });
+  watcher.start();
+  try {
+    await sleep(1400);
+    const pending = await watcher.pendingPrompt(id);
+    assert.equal(pending.kind, 'question');
+    assert.equal(pending.questions[0].question, 'Which one?');
+  } finally {
+    watcher.stop();
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
 test('plugin watcher discovers and streams appended transcript lines', async () => {
   const root = await fs.mkdtemp(path.join(here, '..', '.tmp-plugin-'));
   const projects = path.join(root, 'projects');
