@@ -12,7 +12,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icons/icon-192.png" sizes="192x192">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="/styles.css?v=20261109-39">
+  <link rel="stylesheet" href="/styles.css?v=20261109-40">
   <title>RemoteDeck</title>
 </head>
 <body>
@@ -211,6 +211,13 @@
 
           <div id="takeover-bar" class="takeover-bar" hidden>
             <span>手机已接管此会话</span>
+            <select id="takeover-mode" class="mode-select" aria-label="权限模式">
+              <option value="default">逐项批准</option>
+              <option value="acceptEdits">自动批准编辑</option>
+              <option value="auto">自动模式</option>
+              <option value="plan">仅规划</option>
+              <option value="dontAsk">不询问</option>
+            </select>
             <button type="button" class="text-btn" id="takeover-pending-btn" hidden>处理待回答</button>
             <button type="button" class="small-btn" id="takeover-handback">交还 VS Code</button>
           </div>
@@ -645,6 +652,6 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="/vendor/nosleep.js"></script>
-  <script src="/app.js?v=20261109-39" type="module"></script>
+  <script src="/app.js?v=20261109-40" type="module"></script>
 </body>
 </html>

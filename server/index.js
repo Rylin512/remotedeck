@@ -487,9 +487,10 @@ async function handleApi(req, res, pathname, url, manager, tunnel, hub, watcher,
     const body = await readJson(req);
     if (body.confirm !== '接管') return fail(res, 400, '请输入“接管”确认', 'CONFIRM_REQUIRED');
     const pluginId = pluginTakeoverMatch[1];
-    const data = await watcher.getSession(pluginId, { limit: 200 });
+    const data = await watcher.getSession(pluginId, { limit: 1000 });
     if (!data.session?.live) return fail(res, 409, '插件会话已结束，无法接管');
     const pending = await watcher.pendingPrompt(pluginId);
+    const history = Array.isArray(data.messages) ? data.messages : [];
     await closePluginSession(pluginId, { confirm: '关闭' });
     watcher.markClosed(pluginId);
     hub.broadcast('plugin_closed', { sessionId: pluginId });
@@ -506,6 +507,8 @@ async function handleApi(req, res, pathname, url, manager, tunnel, hub, watcher,
       throw err;
     }
     const session = manager.sessions.get(created.id);
+    session.messages = history.map((event) => ({ ...event }));
+    session.messageCount = session.messages.length;
     session.takeover = {
       pluginId,
       pluginTitle: data.session.title || '',
@@ -513,10 +516,20 @@ async function handleApi(req, res, pathname, url, manager, tunnel, hub, watcher,
       pending: pending || null,
       createdAt: Date.now(),
     };
-    manager.broadcastSession(session);
+    // A resumed plugin transcript can still contain an interrupted turn. Clear
+    // it before the phone starts sending, otherwise the composer stays in
+    // "running" and refuses input.
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    try { await manager.interrupt(created.id); } catch {}
+    const settled = manager.sessions.get(created.id);
+    if (settled && ['starting', 'running', 'waiting_permission'].includes(settled.status)) {
+      settled.status = 'idle';
+      settled.streaming = false;
+    }
+    manager.broadcastSession(settled || session);
     audit('claude.takeover', `${pluginId} -> ${created.id}`);
     return json(res, 201, {
-      session: manager.snapshot(session, { includeMessages: true }),
+      session: manager.snapshot(settled || session, { includeMessages: true }),
       pending: pending || null,
     });
   }

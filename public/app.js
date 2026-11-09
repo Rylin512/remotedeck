@@ -134,9 +134,98 @@ function markdown(text) {
       const cleaned = part.replace(/^[a-zA-Z0-9_+-]*\n/, '');
       return `<pre><code>${escapeHtml(cleaned.replace(/\n$/, ''))}</code></pre>`;
     }
-    const escaped = escapeHtml(part);
-    return inlineMd(escaped).replace(/\n/g, '<br>');
+    return renderMarkdownText(part);
   }).join('');
+}
+
+function tableCells(line) {
+  return line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((cell) => cell.trim());
+}
+
+function tableAlignments(line) {
+  const cells = tableCells(line);
+  if (!cells.length || !cells.every((cell) => /^:?-{3,}:?$/.test(cell))) return null;
+  return cells.map((cell) => {
+    const left = cell.startsWith(':');
+    const right = cell.endsWith(':');
+    if (left && right) return 'center';
+    if (right) return 'right';
+    return left ? 'left' : '';
+  });
+}
+
+function renderTable(header, aligns, rows) {
+  const head = tableCells(header);
+  const align = (index) => (aligns[index] ? ` style="text-align:${aligns[index]}"` : '');
+  const headHtml = head.map((cell, index) => `<th${align(index)}>${inlineMd(escapeHtml(cell))}</th>`).join('');
+  const body = rows.map((row) => {
+    const cells = tableCells(row);
+    return `<tr>${head.map((_, index) => `<td${align(index)}>${inlineMd(escapeHtml(cells[index] || ''))}</td>`).join('')}</tr>`;
+  }).join('');
+  return `<div class="md-table-wrap"><table><thead><tr>${headHtml}</tr></thead><tbody>${body}</tbody></table></div>`;
+}
+
+function renderMarkdownText(part) {
+  const lines = String(part || '').split('\n');
+  const out = [];
+  let index = 0;
+  while (index < lines.length) {
+    const header = lines[index];
+    const aligns = index + 1 < lines.length ? tableAlignments(lines[index + 1]) : null;
+    if (header.includes('|') && aligns && tableCells(header).length === aligns.length) {
+      const rows = [];
+      let next = index + 2;
+      while (next < lines.length && lines[next].includes('|') && lines[next].trim()) {
+        rows.push(lines[next]);
+        next += 1;
+      }
+      out.push(renderTable(header, aligns, rows));
+      index = next;
+      continue;
+    }
+    const heading = header.match(/^(#{1,6})\s+(.*)$/);
+    if (heading) {
+      const level = heading[1].length;
+      out.push(`<h${level}>${inlineMd(escapeHtml(heading[2]))}</h${level}>`);
+      index += 1;
+      continue;
+    }
+    if (/^\s*([-*_])\1{2,}\s*$/.test(header)) {
+      out.push('<hr>');
+      index += 1;
+      continue;
+    }
+    const list = header.match(/^\s*([-*+]|\d+\.)\s+(.*)$/);
+    if (list) {
+      const ordered = /^\d/.test(list[1]);
+      const items = [];
+      let next = index;
+      while (next < lines.length) {
+        const item = lines[next].match(/^\s*([-*+]|\d+\.)\s+(.*)$/);
+        if (!item) break;
+        items.push(`<li>${inlineMd(escapeHtml(item[2]))}</li>`);
+        next += 1;
+      }
+      out.push(`<${ordered ? 'ol' : 'ul'}>${items.join('')}</${ordered ? 'ol' : 'ul'}>`);
+      index = next;
+      continue;
+    }
+    if (/^\s*>\s?/.test(header)) {
+      const quote = [];
+      let next = index;
+      while (next < lines.length && /^\s*>\s?/.test(lines[next])) {
+        quote.push(inlineMd(escapeHtml(lines[next].replace(/^\s*>\s?/, ''))));
+        next += 1;
+      }
+      out.push(`<blockquote>${quote.join('<br>')}</blockquote>`);
+      index = next;
+      continue;
+    }
+    out.push(inlineMd(escapeHtml(header)));
+    index += 1;
+    if (index < lines.length) out.push('<br>');
+  }
+  return out.join('');
 }
 
 function formatBytes(bytes) {
@@ -1366,6 +1455,7 @@ async function loadSession(id) {
   S.historyView = null;
   S.pluginSession = null;
   S.pluginSessionId = null;
+  if (S.session?.takeover) S.pluginMode = 'nudge';
   S.thinkingTokens = 0;
   S.currentActivity = null;
   localStorage.setItem('rd_active_session', id);
@@ -1514,6 +1604,25 @@ function updateComposerState() {
     $('#composer-status').textContent = live
       ? `跨会话消息 · ${mode} · 发送到正在运行的插件`
       : '插件会话已结束，可用“继续对话”恢复';
+    return;
+  }
+  if (S.session?.takeover) {
+    const running = ['running', 'waiting_permission', 'starting'].includes(S.session.status);
+    $('#stop-btn').hidden = !running;
+    $('#send-btn').hidden = false;
+    $('#send-btn').disabled = false;
+    $('#quick-interrupt').hidden = true;
+    $('#plugin-open-vscode-inline').hidden = true;
+    $('#plugin-takeover-inline').hidden = true;
+    $('#plugin-resume-inline').hidden = true;
+    $('#plugin-close-inline').hidden = true;
+    $('#plugin-send-mode').hidden = false;
+    $$('#plugin-send-mode [data-plugin-mode]').forEach((button) => {
+      button.classList.toggle('active', button.dataset.pluginMode === (S.pluginMode === 'interrupt' ? 'interrupt' : 'nudge'));
+    });
+    const mode = S.pluginMode === 'interrupt' ? '直接打断' : '微调（不打断）';
+    $('#composer-status').textContent = `手机接管 · ${currentModeLabel(S.session.permissionMode)} · ${mode}`;
+    updateComposerStatusRow();
     return;
   }
   $('#plugin-open-vscode-inline').hidden = true;
@@ -1869,6 +1978,25 @@ function renderTakeoverBar() {
   if (!bar) return;
   bar.hidden = !takeover;
   $('#takeover-pending-btn').hidden = !takeover?.pending;
+  if (takeover) $('#takeover-mode').value = S.session.permissionMode || 'default';
+}
+
+async function changeTakeoverMode(mode) {
+  if (!S.session?.takeover || !S.activeSessionId) return;
+  const select = $('#takeover-mode');
+  const previous = S.session.permissionMode || 'default';
+  try {
+    const data = await api(`/api/claude/sessions/${S.activeSessionId}/mode`, {
+      method: 'POST',
+      body: { mode },
+    });
+    if (S.session) S.session.permissionMode = data.session?.permissionMode || mode;
+    toast(`权限模式：${currentModeLabel(mode)}`);
+    updateComposerState();
+  } catch (err) {
+    select.value = previous;
+    toast(err.message, true);
+  }
 }
 
 function showTakeoverPending(pending) {
@@ -2193,6 +2321,29 @@ async function sendPrompt() {
       toast(mode === 'interrupt' ? '已请求打断并发送' : '已发送微调，Claude 会在下一个工具/回合读取');
       scrollBottom(true);
     } catch (err) {
+      toast(err.message, true);
+    }
+    return;
+  }
+  if (S.session?.takeover) {
+    const mode = S.pluginMode === 'interrupt' ? 'interrupt' : 'nudge';
+    input.value = '';
+    input.style.height = 'auto';
+    try {
+      if (mode === 'interrupt' && ['running', 'waiting_permission', 'starting'].includes(S.session.status)) {
+        await api(`/api/claude/sessions/${S.activeSessionId}/interrupt`, { method: 'POST', body: {} }).catch(() => {});
+      }
+      await api(`/api/claude/sessions/${S.activeSessionId}/prompt`, { method: 'POST', body: { text } });
+      S.session.status = 'running';
+      S.thinkingTokens = 0;
+      S.currentActivity = 'thinking';
+      setTakeoverPending(null);
+      updateThinkingIndicator();
+      updateComposerState();
+      toast(mode === 'interrupt' ? '已打断并发送' : '已发送微调');
+      scrollBottom(true);
+    } catch (err) {
+      input.value = text;
       toast(err.message, true);
     }
     return;
@@ -2562,6 +2713,7 @@ function bindEvents() {
   $('#plugin-takeover-inline').addEventListener('click', () => takeoverPluginSession());
   $('#takeover-confirm').addEventListener('click', () => doTakeoverPluginSession());
   $('#takeover-handback').addEventListener('click', () => handbackTakeover());
+  $('#takeover-mode').addEventListener('change', (event) => changeTakeoverMode(event.target.value));
   $('#takeover-pending-btn').addEventListener('click', () => {
     if (S.session?.takeover?.pending) showTakeoverPending(S.session.takeover.pending);
   });
