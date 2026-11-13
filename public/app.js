@@ -343,9 +343,23 @@ function hideThinkingIndicator() {
   updateComposerStatusRow();
 }
 
+function nativeKeepAwakeAvailable() {
+  return typeof window.RemoteDeckNative?.setKeepScreenOn === 'function';
+}
+
 function getNoSleep() {
-  if (!S.noSleep && typeof window.NoSleep === 'function') S.noSleep = new window.NoSleep();
+  if (nativeKeepAwakeAvailable()) return null;
+  if (!S.noSleep && typeof window.NoSleep === 'function') {
+    S.noSleep = new window.NoSleep();
+    // NoSleep's fallback video contains a silent audio track. Muting it keeps
+    // Android from taking audio focus and ducking the user's background audio.
+    if (S.noSleep.noSleepVideo) S.noSleep.noSleepVideo.muted = true;
+  }
   return S.noSleep;
+}
+
+function disableNoSleep() {
+  try { S.noSleep?.disable(); } catch {}
 }
 
 function syncNativeKeepAwake() {
@@ -357,6 +371,38 @@ function syncNativeKeepAwake() {
 async function requestWakeLock(showError = false) {
   if (!S.wakeLockEnabled || S.wakeLockActive) return;
   if (document.visibilityState !== 'visible') return;
+  if (nativeKeepAwakeAvailable()) {
+    try {
+      syncNativeKeepAwake();
+      disableNoSleep();
+      S.wakeLock = null;
+      S.wakeLockActive = true;
+      $('#wake-lock-toggle').checked = true;
+      $('#wake-lock-hint').textContent = '原生屏幕常亮已开启，不会占用音频通道。';
+      return;
+    } catch (err) {
+      S.wakeLockActive = false;
+      if (showError) toast(`开启屏幕常亮失败：${err.message}`, true);
+    }
+  }
+  if ('wakeLock' in navigator) {
+    try {
+      S.wakeLock = await navigator.wakeLock.request('screen');
+      S.wakeLockActive = true;
+      disableNoSleep();
+      S.wakeLock.addEventListener('release', () => {
+        S.wakeLock = null;
+        S.wakeLockActive = false;
+        if (S.wakeLockEnabled) setTimeout(() => requestWakeLock(false), 800);
+      });
+      $('#wake-lock-toggle').checked = true;
+      $('#wake-lock-hint').textContent = '屏幕常亮已开启；切到后台会自动释放，回来后重新获取。';
+      return;
+    } catch {
+      S.wakeLock = null;
+      S.wakeLockActive = false;
+    }
+  }
   const noSleep = getNoSleep();
   if (noSleep) {
     try {
@@ -364,43 +410,18 @@ async function requestWakeLock(showError = false) {
       S.wakeLockActive = true;
       S.wakeLock = null;
       $('#wake-lock-toggle').checked = true;
-      $('#wake-lock-hint').textContent = window.isSecureContext
-        ? '屏幕常亮已开启；切到后台会自动释放，回来后重新获取。'
-        : '屏幕常亮已开启（HTTP 兼容模式，使用静音视频保持唤醒）。';
+      $('#wake-lock-hint').textContent = '屏幕常亮已开启（兼容模式）。';
       return;
     } catch (err) {
       S.wakeLockActive = false;
       if (showError) toast(`开启屏幕常亮失败：${err.message}`, true);
-      // Fall through to the native Wake Lock API below.
     }
   }
-  if (!('wakeLock' in navigator)) {
-    S.wakeLockEnabled = false;
-    localStorage.removeItem('rd_wake_lock');
-    $('#wake-lock-toggle').checked = false;
-    $('#wake-lock-hint').textContent = '当前浏览器不支持屏幕常亮。';
-    if (showError) toast('当前浏览器不支持屏幕常亮', true);
-    return;
-  }
-  try {
-    S.wakeLock = await navigator.wakeLock.request('screen');
-    S.wakeLockActive = true;
-    S.wakeLock.addEventListener('release', () => {
-      S.wakeLock = null;
-      S.wakeLockActive = false;
-      if (S.wakeLockEnabled) setTimeout(() => requestWakeLock(false), 800);
-    });
-    $('#wake-lock-toggle').checked = true;
-    $('#wake-lock-hint').textContent = '屏幕常亮已开启；切到后台会自动释放，回来后重新获取。';
-  } catch (err) {
-    S.wakeLock = null;
-    S.wakeLockActive = false;
-    S.wakeLockEnabled = false;
-    localStorage.removeItem('rd_wake_lock');
-    $('#wake-lock-toggle').checked = false;
-    $('#wake-lock-hint').textContent = '无法开启屏幕常亮；请使用 HTTPS 或 localhost 打开 RemoteDeck。';
-    if (showError) toast(`开启屏幕常亮失败：${err.message}`, true);
-  }
+  S.wakeLockEnabled = false;
+  localStorage.removeItem('rd_wake_lock');
+  $('#wake-lock-toggle').checked = false;
+  $('#wake-lock-hint').textContent = '无法开启屏幕常亮；Android App 或 HTTPS 页面支持更好。';
+  if (showError) toast('当前环境不支持屏幕常亮', true);
 }
 
 async function setWakeLock(enabled) {
@@ -409,12 +430,20 @@ async function setWakeLock(enabled) {
   if (enabled) localStorage.setItem('rd_wake_lock', '1');
   else localStorage.setItem('rd_wake_lock', '0');
   if (!enabled) {
-    try { S.noSleep?.disable(); } catch {}
+    disableNoSleep();
     try { await S.wakeLock?.release(); } catch {}
     S.wakeLock = null;
     S.wakeLockActive = false;
     $('#wake-lock-toggle').checked = false;
     $('#wake-lock-hint').textContent = '已关闭屏幕常亮。';
+    return;
+  }
+  if (nativeKeepAwakeAvailable()) {
+    disableNoSleep();
+    S.wakeLock = null;
+    S.wakeLockActive = true;
+    $('#wake-lock-toggle').checked = true;
+    $('#wake-lock-hint').textContent = '原生屏幕常亮已开启，不会占用音频通道。';
     return;
   }
   await requestWakeLock(true);
@@ -426,21 +455,28 @@ function initWakeLock() {
   const toggle = $('#wake-lock-toggle');
   if (!toggle) return;
   toggle.checked = S.wakeLockEnabled;
-  if (typeof window.NoSleep !== 'function' && !('wakeLock' in navigator)) {
+  if (nativeKeepAwakeAvailable()) {
+    S.wakeLockActive = S.wakeLockEnabled;
+    if (S.wakeLockEnabled) $('#wake-lock-hint').textContent = '原生屏幕常亮已开启，不会占用音频通道。';
+  } else if (typeof window.NoSleep !== 'function' && !('wakeLock' in navigator)) {
     toggle.checked = false;
     toggle.disabled = true;
     $('#wake-lock-hint').textContent = '当前浏览器不支持屏幕常亮。';
   }
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && S.wakeLockEnabled) {
-      const fallbackPaused = Boolean(S.noSleep?.noSleepVideo?.paused);
-      if (!S.wakeLockActive || fallbackPaused) {
-        S.wakeLockActive = false;
-        void requestWakeLock(false);
-      }
+    if (document.visibilityState !== 'visible' || !S.wakeLockEnabled) return;
+    if (nativeKeepAwakeAvailable()) {
+      syncNativeKeepAwake();
+      S.wakeLockActive = true;
+      return;
+    }
+    const fallbackPaused = Boolean(S.noSleep?.noSleepVideo?.paused);
+    if (!S.wakeLockActive || fallbackPaused) {
+      S.wakeLockActive = false;
+      void requestWakeLock(false);
     }
   });
-  if (S.wakeLockEnabled) {
+  if (S.wakeLockEnabled && !nativeKeepAwakeAvailable()) {
     document.addEventListener('pointerdown', () => void requestWakeLock(false), { once: true });
   }
 }
@@ -2314,6 +2350,8 @@ async function sendPrompt() {
       });
       input.value = '';
       input.style.height = 'auto';
+      if (mode === 'interrupt') S.pluginMode = 'nudge';
+      $$('#plugin-send-mode [data-plugin-mode]').forEach((b) => b.classList.toggle('active', b.dataset.pluginMode === S.pluginMode));
       if (S.pluginSession) S.pluginSession.status = 'running';
       S.thinkingTokens = 0;
       S.currentActivity = 'thinking';
@@ -2334,6 +2372,8 @@ async function sendPrompt() {
         await api(`/api/claude/sessions/${S.activeSessionId}/interrupt`, { method: 'POST', body: {} }).catch(() => {});
       }
       await api(`/api/claude/sessions/${S.activeSessionId}/prompt`, { method: 'POST', body: { text } });
+      if (mode === 'interrupt') S.pluginMode = 'nudge';
+      $$('#plugin-send-mode [data-plugin-mode]').forEach((b) => b.classList.toggle('active', b.dataset.pluginMode === S.pluginMode));
       S.session.status = 'running';
       S.thinkingTokens = 0;
       S.currentActivity = 'thinking';
@@ -2371,6 +2411,17 @@ async function interruptSession() {
     await api(`/api/claude/sessions/${S.activeSessionId}/interrupt`, { method: 'POST', body: {} });
     toast('已中断当前任务');
   } catch (err) { toast(err.message, true); }
+}
+
+function requestInterrupt() {
+  if (!S.activeSessionId) return;
+  $('#interrupt-dialog').showModal();
+}
+
+async function confirmInterrupt() {
+  const dialog = $('#interrupt-dialog');
+  if (dialog.open) dialog.close();
+  await interruptSession();
 }
 
 async function stopSession() {
@@ -2698,9 +2749,10 @@ function bindEvents() {
       sendPrompt();
     }
   });
-  $('#stop-btn').addEventListener('click', interruptSession);
-  $('#quick-interrupt').addEventListener('click', interruptSession);
-  $('#menu-interrupt').addEventListener('click', () => { $('#session-menu-dialog').close(); interruptSession(); });
+  $('#stop-btn').addEventListener('click', requestInterrupt);
+  $('#quick-interrupt').addEventListener('click', requestInterrupt);
+  $('#interrupt-confirm').addEventListener('click', () => confirmInterrupt());
+  $('#menu-interrupt').addEventListener('click', () => { $('#session-menu-dialog').close(); requestInterrupt(); });
   $('#menu-refresh').addEventListener('click', async () => {
     $('#session-menu-dialog').close();
     if (S.activeSessionId) await loadSession(S.activeSessionId);

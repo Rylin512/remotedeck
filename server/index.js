@@ -516,16 +516,10 @@ async function handleApi(req, res, pathname, url, manager, tunnel, hub, watcher,
       pending: pending || null,
       createdAt: Date.now(),
     };
-    // A resumed plugin transcript can still contain an interrupted turn. Clear
-    // it before the phone starts sending, otherwise the composer stays in
-    // "running" and refuses input.
-    await new Promise((resolve) => setTimeout(resolve, 700));
-    try { await manager.interrupt(created.id); } catch {}
+    // Never interrupt a resumed turn automatically: the user did not press
+    // interrupt. The takeover composer stays usable if the turn is still
+    // running, and an explicit “直接打断” action is the only way to stop it.
     const settled = manager.sessions.get(created.id);
-    if (settled && ['starting', 'running', 'waiting_permission'].includes(settled.status)) {
-      settled.status = 'idle';
-      settled.streaming = false;
-    }
     manager.broadcastSession(settled || session);
     audit('claude.takeover', `${pluginId} -> ${created.id}`);
     return json(res, 201, {

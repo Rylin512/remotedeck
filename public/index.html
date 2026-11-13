@@ -12,7 +12,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icons/icon-192.png" sizes="192x192">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="/styles.css?v=20261109-40">
+  <link rel="stylesheet" href="/styles.css?v=20261113-41">
   <title>RemoteDeck</title>
 </head>
 <body>
@@ -552,6 +552,21 @@
     </div>
   </dialog>
 
+  <dialog id="interrupt-dialog" class="sheet">
+    <div class="sheet-grip"></div>
+    <div class="sheet-head">
+      <div><div class="eyebrow">INTERRUPT</div><h2>中断当前任务？</h2></div>
+      <button class="icon-btn" data-close-dialog="interrupt-dialog" aria-label="关闭"><svg class="icon"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="sheet-body">
+      <p class="muted small">这只会中断当前正在运行的回合，不会关闭会话。确认后 Claude 会停在当前步骤。</p>
+    </div>
+    <div class="sheet-actions stack">
+      <button class="primary danger" id="interrupt-confirm">确认中断</button>
+      <button class="ghost" data-close-dialog="interrupt-dialog">取消</button>
+    </div>
+  </dialog>
+
   <dialog id="power-dialog" class="sheet">
     <div class="sheet-grip"></div>
     <div class="sheet-head">
@@ -652,6 +667,6 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="/vendor/nosleep.js"></script>
-  <script src="/app.js?v=20261109-40" type="module"></script>
+  <script src="/app.js?v=20261113-41" type="module"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-const CACHE = 'remotedeck-v43';
+const CACHE = 'remotedeck-v44';
 const SHELL = [
   '/',
   '/index.html',
